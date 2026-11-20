@@ -7,6 +7,19 @@ FastAPI + Postgres backend.
 - Provider-agnostic LLM calls via LiteLLM (`LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`)
 - ruff, black, isort, pytest, pre-commit
 
+## Backend structure
+- `backend/app/main.py`: FastAPI app, CORS, router registration, `/health`
+- `backend/app/config.py`: settings loaded from `.env` (database URL, CORS origins, `LLM_*`)
+- `backend/app/db.py`: async SQLAlchemy engine and the `get_session` dependency
+- `backend/app/models/`: SQLAlchemy table models (`Base` lives in `base.py`)
+- `backend/app/schemas/`: Pydantic request and response schemas
+- `backend/app/routers/`: API endpoints, one file per resource
+- `backend/alembic/versions/`: database migration scripts
+- `backend/tests/`: pytest tests
+- `backend/.env.example`: template for the local `.env` (never commit `.env`)
+- `docker-compose.yml`: local Postgres (repo root)
+- `.github/workflows/ci.yml`: CI that runs lint and tests
+
 ## Setup
 ```bash
 docker compose up -d db
