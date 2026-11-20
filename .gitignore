@@ -1,6 +1,7 @@
 # Secrets
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 credentials.json
@@ -15,6 +16,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 .idea/
+
+# Local tooling
+.mcp.json
+.vs/
+.claude/
 
 # Build
 dist/
