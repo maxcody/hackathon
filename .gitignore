@@ -18,9 +18,9 @@ Thumbs.db
 .idea/
 
 # Local tooling
-.mcp.json
 .vs/
-.claude/
+.claude/*
+!.claude/settings.json
 
 # Build
 dist/
