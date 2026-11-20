@@ -16,6 +16,7 @@ FastAPI + Postgres backend.
 - `backend/app/routers/`: API endpoints, one file per resource
 - `backend/alembic/versions/`: database migration scripts
 - `backend/tests/`: pytest tests
+- `backend/.pre-commit-config.yaml`: pre-commit hooks (isort, black, ruff) run on each commit after `pre-commit install`
 - `backend/.env.example`: template for the local `.env` (never commit `.env`)
 - `docker-compose.yml`: local Postgres (repo root)
 - `.github/workflows/ci.yml`: CI that runs lint and tests
