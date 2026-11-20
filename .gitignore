@@ -1,0 +1,21 @@
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+
+# Build
+dist/
+build/
