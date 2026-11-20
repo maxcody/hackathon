@@ -32,3 +32,19 @@ API docs: http://localhost:8000/docs
 | `make test` | Run tests |
 
 Run `pre-commit install` once to enable the format hooks.
+
+## Claude Code setup (optional)
+The repo ships shared config so collaborators get the same tools:
+- `.mcp.json`: Context7 MCP for up-to-date library docs (needs Node/`npx`)
+- `.claude/settings.json`: enables the Ponytail and Karpathy skills plugins
+
+Open the folder in Claude Code and accept the workspace trust prompt. The plugins install and Context7 is approved automatically.
+
+Manual fallback (run inside Claude Code):
+```
+/plugin marketplace add DietrichGebert/ponytail
+/plugin install ponytail@ponytail
+/plugin marketplace add forrestchang/andrej-karpathy-skills
+/plugin install andrej-karpathy-skills@karpathy-skills
+```
+Ponytail does not work in the VS Code chat panel; use the terminal CLI (`claude`) or the desktop app.
