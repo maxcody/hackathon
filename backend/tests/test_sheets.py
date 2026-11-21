@@ -66,6 +66,23 @@ def data_dir(tmp_path, monkeypatch):
                 2: ["Saturday", "06:00", "16", "L1"],
                 3: ["30", "No night shift."],  # stray line: no Hours
             },
+            "Components": {
+                1: ["Stock DC-HAM after receipts 2026-11-21"],
+                3: [
+                    "Site",
+                    "Material",
+                    "Description",
+                    "Qty",
+                    "UoM",
+                    "Receipts today",
+                    "Used today",
+                ],
+                4: ["DC-HAM", "CMP-1", "Card", "42.900", "PC", "28000", "103500"],
+            },
+            "Finished goods": {
+                3: ["Site", "Material", "Description", "Qty", "UoM", "Packed today"],
+                4: ["DC-HAM", "FG-STD", "Standard", "602.000", "PC", "90000"],
+            },
             "Junk": {1: ["foo", "bar"], 2: ["1", "2"]},
         },
     )
@@ -93,7 +110,14 @@ def data_dir(tmp_path, monkeypatch):
 
 async def test_import_cleans_and_serves_rows(client, data_dir):
     summary = (await client.post("/import/sheets")).json()
-    assert summary["rows"] == {"editions": 2, "notes": 2, "shifts": 1, "price_list": 1}
+    assert summary["rows"] == {
+        "editions": 2,
+        "stock": 1,
+        "packed": 1,
+        "notes": 2,
+        "shifts": 1,
+        "price_list": 1,
+    }
     assert sorted(summary["skipped_rows"]) == [
         "soony/anywhere/status_final_v9.xlsx:Shifts:3",
         "suppliers/prices.xlsx:P:4",
@@ -108,6 +132,12 @@ async def test_import_cleans_and_serves_rows(client, data_dir):
     assert editions[0]["data"]["Rate per hour"] == 6000
     assert editions[0]["title"] == "Launch status · Saturday 13:00"
     assert editions[1]["data"]["Still to pack"] == 18900
+
+    stock = (await rows(client, "stock"))[0]
+    assert stock["data"]["Qty"] == 42900  # "42.900" is German thousands
+    assert stock["data"]["Used today"] == 103500
+    assert stock["title"] == "Stock DC-HAM after receipts 2026-11-21"
+    assert (await rows(client, "packed"))[0]["data"]["Qty"] == 602000
 
     price = (await rows(client, "price_list"))[0]["data"]
     assert price["Current price"] == 1.38 and price["Valid from"] == "2025-06-24"

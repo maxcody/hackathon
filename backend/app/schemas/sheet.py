@@ -4,7 +4,8 @@ from pydantic import BaseModel, ConfigDict
 class SheetRowCreate(BaseModel):
     """One row of an Excel sheet, keyed by the sheet's own column labels."""
 
-    kind: str  # editions, parts, inbound, shifts, shipments, price_list, notes
+    # editions, parts, inbound, shifts, shipments, price_list, stock, packed, notes
+    kind: str
     source: str
     sheet: str
     title: str | None = None
