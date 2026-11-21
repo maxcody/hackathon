@@ -1,0 +1,32 @@
+# Environments and secrets
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Dev-only files not needed in the image
+tests/
+.pre-commit-config.yaml
+Makefile
+requirements-dev.txt
+Dockerfile
+.dockerignore
+
+# VCS and editor
+.git/
+.gitignore
+.idea/
+.vs/
+.DS_Store
