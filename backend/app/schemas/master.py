@@ -4,12 +4,27 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict
 
 
-class _Orm(BaseModel):
+class _Read(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ComponentRead(_Orm):
-    """A part, with its current drawing revision."""
+class ProductCreate(BaseModel):
+    """A finished good we sell."""
+
+    product_id: str
+    name: str
+    product_line: str
+    lifecycle: str
+    launch_date: date
+    weekly_plan_qty: int
+    day_one_qty: int | None = None
+    plants: str
+    std_cost_eur: Decimal
+    valid_from: date
+
+
+class ComponentCreate(BaseModel):
+    """A part that goes into a product."""
 
     component_id: str
     description: str
@@ -20,36 +35,17 @@ class ComponentRead(_Orm):
     drawing_rev: str
 
 
-class BomLineRead(_Orm):
+class BomLineCreate(BaseModel):
     """One part of a product's bill of materials."""
 
+    parent_id: str
     child_id: str
     qty_per: int
     valid_from: date
     valid_to: date
 
 
-class ProductRead(_Orm):
-    """A finished good without its BOM."""
-
-    product_id: str
-    name: str
-    product_line: str
-    lifecycle: str
-    launch_date: date
-    weekly_plan_qty: int
-    day_one_qty: int | None
-    plants: str
-    std_cost_eur: Decimal
-
-
-class ProductDetail(ProductRead):
-    """A finished good with its bill of materials."""
-
-    bom: list[BomLineRead]
-
-
-class BomChangeRead(_Orm):
+class BomChangeCreate(BaseModel):
     """An engineering change on a BOM line."""
 
     change_id: str
@@ -63,3 +59,21 @@ class BomChangeRead(_Orm):
     use_up_old_rev: bool
     effective_from: date
     reason: str
+
+
+class ComponentRead(ComponentCreate, _Read):
+    pass
+
+
+class BomLineRead(BomLineCreate, _Read):
+    id: int
+
+
+class BomChangeRead(BomChangeCreate, _Read):
+    pass
+
+
+class ProductRead(ProductCreate, _Read):
+    """A product with its bill of materials (read-only here; edit via /bom-lines)."""
+
+    bom: list[BomLineRead]

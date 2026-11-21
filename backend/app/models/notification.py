@@ -1,4 +1,3 @@
-import enum
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, String, Text, func
@@ -8,21 +7,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
 
 
-class NotificationStatus(enum.StrEnum):
-    OPEN = "open"
-    ACKNOWLEDGED = "acknowledged"
-    RESOLVED = "resolved"
-
-
 class Notification(Base):
     """One happening where the system and the customer side disagree.
 
     ``attr`` is what differs (for example ``quantity``), ``erp_val`` is the
     ERP's value and ``customer_val`` the customer side's, both as text so any
-    attribute fits. ``data`` holds the rest so each check can add what it needs:
-    ``fingerprint`` (same happening across runs, so a re-run updates the row and
-    keeps its status), ``kind``, ``status``, ``title``, ``subject``
-    and ``refs``. ``seen_at`` is when the system last detected it.
+    attribute fits. ``data`` holds the rest so each check can add what it needs
+    (for example ``kind``, ``status``, ``title``, ``subject``, ``refs``).
+    ``seen_at`` is when the problem was last detected; it defaults to creation.
     """
 
     __tablename__ = "notifications"

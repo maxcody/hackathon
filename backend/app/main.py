@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db import engine
-from app.routers import files, master, notifications, sheets, status, sync
+from app.routers import imported, imports, notifications
 
 app = FastAPI(title="Hackathon API")
 app.add_middleware(
@@ -13,12 +13,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(files.router)
+app.include_router(imported.router)
+app.include_router(imports.router)
 app.include_router(notifications.router)
-app.include_router(master.router)
-app.include_router(sheets.router)
-app.include_router(status.router)
-app.include_router(sync.router)
 
 
 @app.get("/health")

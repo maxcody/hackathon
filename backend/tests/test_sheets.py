@@ -30,6 +30,15 @@ def make_xlsx(path, sheets: dict[str, dict[int, list[str]]]) -> None:
             )
 
 
+async def rows(client, kind: str) -> list[dict]:
+    """Return the stored rows of one kind, in source and row order."""
+    found = (await client.get("/sheet-rows")).json()
+    return sorted(
+        (r for r in found if r["kind"] == kind),
+        key=lambda r: (r["source"], r["row_no"]),
+    )
+
+
 @pytest.fixture
 def data_dir(tmp_path, monkeypatch):
     """A data folder with oddly named workbooks."""
@@ -83,7 +92,7 @@ def data_dir(tmp_path, monkeypatch):
 
 
 async def test_import_cleans_and_serves_rows(client, data_dir):
-    summary = (await client.post("/sheets/import")).json()
+    summary = (await client.post("/import/sheets")).json()
     assert summary["rows"] == {"editions": 2, "notes": 2, "shifts": 1, "price_list": 1}
     assert sorted(summary["skipped_rows"]) == [
         "soony/anywhere/status_final_v9.xlsx:Shifts:3",
@@ -94,15 +103,15 @@ async def test_import_cleans_and_serves_rows(client, data_dir):
         "suppliers/broken.xlsx",
     ]
 
-    editions = (await client.get("/sheets/editions")).json()
+    editions = await rows(client, "editions")
     assert editions[0]["data"]["Packed"] == 554000  # "554.000" is German thousands
     assert editions[0]["data"]["Rate per hour"] == 6000
     assert editions[0]["title"] == "Launch status · Saturday 13:00"
     assert editions[1]["data"]["Still to pack"] == 18900
 
-    price = (await client.get("/sheets/price_list")).json()[0]["data"]
+    price = (await rows(client, "price_list"))[0]["data"]
     assert price["Current price"] == 1.38 and price["Valid from"] == "2025-06-24"
-    assert [r["data"]["Note"] for r in (await client.get("/sheets/notes")).json()] == [
+    assert [r["data"]["Note"] for r in await rows(client, "notes")] == [
         "Collector's first.",
         "Rev C released.",
     ]
@@ -125,16 +134,12 @@ async def test_identifiers_stay_text(client, data_dir, tmp_path):
             }
         },
     )
-    await client.post("/sheets/import")
-    data = (await client.get("/sheets/shipments")).json()[0]["data"]
+    await client.post("/import/sheets")
+    data = (await rows(client, "shipments"))[0]["data"]
     assert data["POs"] == "4500318738" and data["Container/AWB"] == "020-48113256"
 
 
 async def test_import_twice_does_not_duplicate(client, data_dir):
-    await client.post("/sheets/import")
-    await client.post("/sheets/import")
-    assert len((await client.get("/sheets/editions")).json()) == 2
-
-
-async def test_unknown_kind_is_404(client):
-    assert (await client.get("/sheets/nope")).status_code == 404
+    await client.post("/import/sheets")
+    await client.post("/import/sheets")
+    assert len(await rows(client, "editions")) == 2
