@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db import engine
-from app.routers import files, findings, master, status, sync
+from app.routers import imported, imports, notifications
 
 app = FastAPI(title="Hackathon API")
 app.add_middleware(
@@ -17,11 +17,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(files.router)
-app.include_router(findings.router)
-app.include_router(master.router)
-app.include_router(status.router)
-app.include_router(sync.router)
+app.include_router(imported.router)
+app.include_router(imports.router)
+app.include_router(notifications.router)
 
 static_dir = Path(__file__).parent / "static"
 react_dir = static_dir / "react"

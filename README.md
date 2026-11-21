@@ -4,12 +4,11 @@ FastAPI + Postgres backend.
 
 ## Stack
 - FastAPI, async SQLAlchemy 2, asyncpg, Alembic
-- LLM calls via the OpenAI SDK, usable with any OpenAI-compatible provider (`LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`)
 - ruff, black, isort, pytest, pre-commit
 
 ## Backend structure
 - `backend/app/main.py`: FastAPI app, CORS, router registration, `/health`
-- `backend/app/config.py`: settings loaded from `.env` (database URL, CORS origins, `LLM_*`)
+- `backend/app/config.py`: settings loaded from `.env` (database URL, CORS origins)
 - `backend/app/db.py`: async SQLAlchemy engine and the `get_session` dependency
 - `backend/app/models/`: SQLAlchemy table models (`Base` lives in `base.py`)
 - `backend/app/schemas/`: Pydantic request and response schemas

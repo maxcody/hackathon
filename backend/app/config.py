@@ -15,11 +15,6 @@ class Settings(BaseSettings):
         "https://start-hack-portal-cxh3crbdaef2f8gt.westeurope-01.azurewebsites.net"
     )
     portal_token: str | None = None
-    # Provider-agnostic LLM settings, used with the OpenAI SDK. Point
-    # llm_base_url at any OpenAI-compatible endpoint (OpenAI, Ollama, Groq, ...).
-    llm_model: str | None = None
-    llm_api_key: str | None = None
-    llm_base_url: str | None = None
 
 
 settings = Settings()
