@@ -48,6 +48,18 @@
           <div class="section-heading agent-heading" id="agents"><div><span class="section-index">04</span><h2>Agents on the floor.</h2></div><span class="muted-label">SPECIALISTS, NOT CHATBOTS</span></div>
           <section class="agent-grid" id="agent-list"></section>
 
+          <section class="agent-card hermes-panel" aria-labelledby="hermes-heading">
+            <h2 id="hermes-heading">OpenAI agent</h2>
+            <form id="hermes-form">
+              <label for="hermes-key">Dashboard access key</label>
+              <input id="hermes-key" type="password" required />
+              <label for="hermes-task">Task</label>
+              <textarea id="hermes-task" rows="4" maxlength="8000" required></textarea>
+              <button id="hermes-run" class="run-button" type="submit">Run agent</button>
+            </form>
+            <div id="hermes-result" role="status"></div>
+          </section>
+
           <section class="evidence-section" id="evidence"><div><div class="evidence-heading"><span class="section-index">05</span><h2>Show your work.</h2></div><p>Every signal traces back to a source. Unknowns stay unknown.</p></div><div class="source-card"><div class="source-icon">▤</div><div><strong>Hack League case kickoff brief</strong><span>Verified baseline · 3 facts used</span></div><span class="verified">✓ VERIFIED</span></div></section>
 
           <footer><span>LINEWATCH <span class="footer-dot">●</span> SOONY WORKSPACE</span><span>Built for the moments before the deadline.</span></footer>

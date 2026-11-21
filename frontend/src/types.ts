@@ -72,3 +72,15 @@ export interface ImportResult {
   file_count: number;
   changed_count: number;
 }
+
+/** A user-created agent listed in the workspace. */
+export interface AgentSummary {
+  id: string;
+  name: string;
+}
+
+/** An agent's independent chat and instructions. */
+export interface WorkspaceAgent extends AgentSummary {
+  instructions: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+}

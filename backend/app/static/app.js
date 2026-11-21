@@ -97,6 +97,34 @@ function showToast(message) {
   window.setTimeout(() => toast.classList.remove("show"), 2600);
 }
 
+byId("hermes-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const task = byId("hermes-task").value.trim();
+  const result = byId("hermes-result");
+  if (!task) {
+    result.textContent = "Enter a task for the agent.";
+    return;
+  }
+  const button = byId("hermes-run");
+  button.disabled = true;
+  result.textContent = "The agent is working…";
+  try {
+    const response = await request("/api/agents/ask", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Agent-Access-Key": byId("hermes-key").value,
+      },
+      body: JSON.stringify({ task }),
+    });
+    result.textContent = response.reply;
+  } catch (error) {
+    result.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
 byId("run-agents").addEventListener("click", async () => {
   const button = byId("run-agents");
   button.disabled = true;

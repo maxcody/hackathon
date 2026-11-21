@@ -1,4 +1,4 @@
-import type { ImportResult, LaunchBrief } from "./types";
+import type { AgentSummary, ImportResult, LaunchBrief, WorkspaceAgent } from "./types";
 
 /** Make a typed request to the Linewatch API. */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -22,6 +22,31 @@ export function getBrief(): Promise<LaunchBrief> {
 /** Re-run prioritization after new data has arrived. */
 export function runAgents(): Promise<LaunchBrief> {
   return request<LaunchBrief>("/api/agents/run", { method: "POST" });
+}
+
+/** List user-created agents. */
+export function listWorkspaceAgents(): Promise<AgentSummary[]> {
+  return request("/api/agent-workspace");
+}
+
+/** Create an agent with optional instructions. */
+export function createWorkspaceAgent(name: string, instructions: string): Promise<WorkspaceAgent> {
+  return request("/api/agent-workspace", jsonPost({ name, instructions }));
+}
+
+/** Load a specific agent and conversation. */
+export function getWorkspaceAgent(id: string): Promise<WorkspaceAgent> {
+  return request(`/api/agent-workspace/${encodeURIComponent(id)}`);
+}
+
+/** Send a message to the selected agent. */
+export function sendAgentMessage(id: string, message: string): Promise<WorkspaceAgent> {
+  return request(`/api/agent-workspace/${encodeURIComponent(id)}/chat`, jsonPost({ message }));
+}
+
+/** Construct a JSON POST request. */
+function jsonPost(body: Record<string, string>): RequestInit {
+  return { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
 }
 
 /** Upload a portal archive as a new local snapshot. */

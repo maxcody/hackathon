@@ -77,6 +77,28 @@ Imports stay on the machine in the ignored `.local_data/` folder. Do not add Soo
 4. Sync/import again after an event. The event list shows changed files; **Run agents** evaluates the latest snapshot.
 5. Prepare an edition supplier draft and verify the recipient before copying/sending it yourself.
 
+## Agents tab
+
+Open **Agents** in the dashboard to create an agent with a name and optional
+instructions. Each agent keeps its own chat in `.local_data/agents.sqlite3`.
+Creating an agent requires no model setup. Chat uses the backend's `LLM_MODEL`
+and `LLM_API_KEY` settings, and optionally `LLM_BASE_URL` for another provider.
+
+## Run multiple Codex coding assistants
+
+Install and sign in to the Codex CLI on the machine that will run the agents.
+From the repository root, run a batch of named tasks:
+
+```powershell
+.\.venv\Scripts\python.exe backend/scripts/launch_codex_agents.py --parallel 2 --task 'review=Review the dashboard API integration' --task 'tests=Identify missing tests for the import workflow'
+```
+
+Each task gets an independent Codex session. The launcher prints the run
+directory under `.local_data/codex-runs/`, with a `reply.md`, `events.jsonl`, and
+`stderr.log` per agent. A batch exits with a failure status if any agent fails.
+The default sandbox is read-only. Add `--write` to give each agent a separate
+Codex-managed Git worktree. Use `--timeout` to cap each session in seconds.
+
 To demo changing data without a portal token, run `python scripts/create_demo_drops.py` from `backend/`. Import `.local_data/demo_drops/drop_1.zip`, review the stock and Taiwan-port signals, then import `drop_2.zip`. The second snapshot changes a PO confirmation/ETA and supplier IBAN; Linewatch should raise a critical bank-verification signal and show the changed fields. The supplier and data are fictional.
 
 ## Office-hours questions

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getBrief, getSupplierDraft, importArchive, runAgents, syncPortal } from "./api";
 import type { LaunchBrief, Risk, Severity } from "./types";
+import { AgentsPage } from "./AgentsPage";
 
 const number = new Intl.NumberFormat("en-US");
 const severityOrder: Severity[] = ["critical", "high", "medium", "low"];
@@ -32,8 +33,56 @@ function Icon({ name }: { name: string }) {
  * @returns The interactive launch control interface.
  */
 export function App() {
+  const [location, setLocation] = useState(window.location.hash || "#overview");
   const [brief, setBrief] = useState<LaunchBrief | null>(null);
-  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const onNavigate = () => setLocation(window.location.hash || "#overview");
+    window.addEventListener("hashchange", onNavigate);
+    return () => window.removeEventListener("hashchange", onNavigate);
+  }, []);
+  return (
+    <div className="app-shell">
+      <Sidebar location={location} brief={brief} />
+      {location === "#agents" ? <AgentsPage /> : <Dashboard brief={brief} setBrief={setBrief} />}
+    </div>
+  );
+}
+
+/** Keep workspace navigation and connection status visible across tabs. */
+function Sidebar({ location, brief }: { location: string; brief: LaunchBrief | null }) {
+  const imported = brief?.data?.imported ?? false;
+  const links = [
+    ["#overview", "grid", "Overview"],
+    ["#priorities", "alert", "Priorities"],
+    ["#changes", "pulse", "Data changes"],
+    ["#evidence", "file", "Evidence & sources"],
+    ["#agents", "spark", "Agents"],
+  ];
+  return (
+    <aside className="sidebar">
+      <a className="brand" href="#overview" aria-label="Linewatch home"><span className="brand-mark">L</span><span>linewatch<span className="brand-period">.</span></span></a>
+      <div className="side-caption">YOUR WORKSPACE</div>
+      <div className="workspace-switch"><span className="workspace-icon">S</span><span><strong>Soony Interactive</strong><small>Grand Heist 6</small></span><span className="down-caret">⌄</span></div>
+      <div className="side-caption nav-caption">LAUNCH CONTROL</div>
+      <nav className="main-nav" aria-label="Main navigation">
+        {links.map(([href, icon, label]) => (
+          <a key={href} className={`nav-link${location === href ? " selected" : ""}`} href={href} aria-label={label} aria-current={location === href ? (href === "#agents" ? "page" : "location") : undefined}>
+            <Icon name={icon} /> {label}
+            {href === "#priorities" && brief && <span className="nav-count">{brief.risks.length}</span>}
+          </a>
+        ))}
+      </nav>
+      <div className="sidebar-bottom">
+        {brief && <div className="connection-card"><span className={`connection-dot ${imported ? "connected" : ""}`} /><div><strong>{imported ? "Data connected" : "Waiting for data"}</strong><small>{imported ? `${brief.data?.file_count ?? 0} files indexed` : "Import a portal archive"}</small></div></div>}
+        <div className="profile-row"><div className="profile-avatar">S</div><div><strong>Launch team</strong><small>Soony workspace</small></div><span className="profile-menu">•••</span></div>
+      </div>
+    </aside>
+  );
+}
+
+/** Render the launch overview and its evidence. */
+function Dashboard({ brief, setBrief }: { brief: LaunchBrief | null; setBrief: (brief: LaunchBrief) => void }) {
+  const [loading, setLoading] = useState(!brief);
   const [busy, setBusy] = useState<"sync" | "import" | "agents" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -46,14 +95,19 @@ export function App() {
   const refresh = useCallback(async () => {
     setError(null);
     setBrief(await getBrief());
-  }, []);
+  }, [setBrief]);
 
   useEffect(() => {
     getBrief()
       .then(setBrief)
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load the launch brief."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [setBrief]);
+
+  useEffect(() => {
+    if (loading) return;
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
+  }, [loading]);
 
   useEffect(() => {
     if (!brief?.data?.portal_sync_enabled) return;
@@ -162,24 +216,7 @@ export function App() {
   const completion = Math.max(0, Math.min(100, brief.summary.completion_pct));
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <a className="brand" href="#overview" aria-label="Linewatch home"><span className="brand-mark">L</span><span>linewatch<span className="brand-period">.</span></span></a>
-        <div className="side-caption">YOUR WORKSPACE</div>
-        <div className="workspace-switch"><span className="workspace-icon">S</span><span><strong>Soony Interactive</strong><small>Grand Heist 6</small></span><span className="down-caret">⌄</span></div>
-        <div className="side-caption nav-caption">LAUNCH CONTROL</div>
-        <nav className="main-nav" aria-label="Main navigation">
-          <a className="nav-link selected" href="#overview"><Icon name="grid" /> Overview</a>
-          <a className="nav-link" href="#priorities"><Icon name="alert" /> Priorities <span className="nav-count">{brief.risks.length}</span></a>
-          <a className="nav-link" href="#changes"><Icon name="pulse" /> Data changes</a>
-          <a className="nav-link" href="#evidence"><Icon name="file" /> Evidence & sources</a>
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="connection-card"><span className={`connection-dot ${imported ? "connected" : ""}`} /><div><strong>{imported ? "Data connected" : "Waiting for data"}</strong><small>{imported ? `${brief.data?.file_count ?? 0} files indexed` : "Import a portal archive"}</small></div></div>
-          <div className="profile-row"><div className="profile-avatar">S</div><div><strong>Launch team</strong><small>Soony workspace</small></div><span className="profile-menu">•••</span></div>
-        </div>
-      </aside>
-
+    <>
       <main id="overview" className="main-content">
         <header className="topbar"><div className="mobile-brand"><span className="brand-mark">L</span> linewatch<span className="brand-period">.</span></div><div className="breadcrumbs">Workspaces <span>/</span> Soony <span>/</span> <strong>Launch overview</strong></div><div className="topbar-right"><span className="live-badge"><i /> LIVE VIEW</span><span className="top-divider" /><span className="top-avatar">S</span></div></header>
         <div className="content-wrap">
@@ -225,7 +262,7 @@ export function App() {
       </main>
 
       {draft && <div className="modal-backdrop" role="presentation" onClick={() => setDraft(null)}><section className="draft-modal" role="dialog" aria-modal="true" aria-labelledby="draft-heading" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setDraft(null)} aria-label="Close draft">×</button><span className="modal-kicker">SUPPLIER FOLLOW-UP · DRAFT ONLY</span><h2 id="draft-heading">{draft.title}</h2><div className="draft-warning"><Icon name="alert" /> Confirm supplier ownership and recipient before sending. Nothing is sent from Linewatch.</div><div className="draft-meta"><span>TO</span><strong>{draft.to}</strong></div><div className="draft-meta"><span>SUBJECT</span><strong>{draft.subject}</strong></div><pre>{draft.body}</pre><button className="button button-dark draft-copy" onClick={() => void copyDraft()}>Copy draft</button></section></div>}
-    </div>
+    </>
   );
 }
 
