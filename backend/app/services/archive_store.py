@@ -1,9 +1,8 @@
 """Persist the latest imported portal snapshot and its change history."""
 
-import json
 import io
+import json
 import zipfile
-import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -94,9 +93,7 @@ class ArchiveStore:
         """Return only remote paths whose checksum is new or changed."""
         old_manifest = self._read_json(self.manifest_path, {})
         return [
-            path
-            for path, digest in remote.items()
-            if old_manifest.get(path) != digest
+            path for path, digest in remote.items() if old_manifest.get(path) != digest
         ]
 
     def commit_remote_files(
@@ -111,9 +108,11 @@ class ArchiveStore:
                 "file_count": len(remote),
                 "changed_count": 0,
                 "changes": [],
-                "imported_at": datetime.fromtimestamp(
-                    self.archive_path.stat().st_mtime, UTC
-                ).isoformat(),
+                "imported_at": (
+                    datetime.fromtimestamp(
+                        self.archive_path.stat().st_mtime, UTC
+                    ).isoformat()
+                ),
             }
 
         cached = self.cached_files()

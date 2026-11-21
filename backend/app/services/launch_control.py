@@ -39,21 +39,33 @@ def build_launch_brief(documents: list[Document] | None = None) -> dict[str, obj
     collector_remaining = int(editions[1]["remaining"])
     standard_remaining = int(editions[0]["remaining"])
     status_source = next(
-        (document.path for document in documents if document.path.endswith("launch_status.xlsx")),
+        (
+            document.path
+            for document in documents
+            if document.path.endswith("launch_status.xlsx")
+        ),
         None,
     )
     risks = [
         {
             "severity": "high",
             "title": "Collector's Edition pre-orders must be protected first",
-            "detail": f"{quantity(collector_remaining)} pre-ordered copies remain to pack.",
+            "detail": (
+                f"{quantity(collector_remaining)} pre-ordered copies remain to pack."
+            ),
             "evidence": (
                 f"{status_source} · latest pack-out status"
                 if status_source
-                else f"Kickoff baseline: {quantity(COLLECTOR_PACKED)} of {quantity(COLLECTOR_REQUIRED)} packed."
+                else (
+                    f"Kickoff baseline: {quantity(COLLECTOR_PACKED)} of"
+                    f" {quantity(COLLECTOR_REQUIRED)} packed."
+                )
             ),
             "owner": "Mei Lin · Buyer, Collector's Items",
-            "action": "Prioritize Collector's Edition when assigning shared parts; confirm its cell's remaining run time.",
+            "action": (
+                "Prioritize Collector's Edition when assigning shared parts; confirm"
+                " its cell's remaining run time."
+            ),
         },
         {
             "severity": "high",
@@ -62,21 +74,34 @@ def build_launch_brief(documents: list[Document] | None = None) -> dict[str, obj
             "evidence": (
                 f"{status_source} · latest pack-out status"
                 if status_source
-                else f"Kickoff baseline: {quantity(STANDARD_PACKED)} of {quantity(STANDARD_REQUIRED)} packed."
+                else (
+                    f"Kickoff baseline: {quantity(STANDARD_PACKED)} of"
+                    f" {quantity(STANDARD_REQUIRED)} packed."
+                )
             ),
             "owner": "Unassigned — supplier mapping not yet verified",
-            "action": "Request a confirmed hourly completion plan and flag any material constraint.",
+            "action": (
+                "Request a confirmed hourly completion plan and flag any material"
+                " constraint."
+            ),
         },
         {
             "severity": "high",
             "title": "No alternate distribution center is available",
-            "detail": "All day-one quantities depend on the Hamburg distribution center.",
+            "detail": (
+                "All day-one quantities depend on the Hamburg distribution center."
+            ),
             "evidence": "Case brief: 1 distribution center, no plan B site.",
             "owner": "Logistics lead",
-            "action": "Verify dock slots, truck capacity, and latest loading cutoff for Sunday 20:00.",
+            "action": (
+                "Verify dock slots, truck capacity, and latest loading cutoff for"
+                " Sunday 20:00."
+            ),
         },
     ]
-    risks[1]["title"] = f"Standard edition still has {quantity(standard_remaining)} units to pack"
+    risks[1][
+        "title"
+    ] = f"Standard edition still has {quantity(standard_remaining)} units to pack"
     risks.extend(_component_change_risks(documents, collector_remaining))
 
     policy_text = "\n".join(
@@ -87,19 +112,31 @@ def build_launch_brief(documents: list[Document] | None = None) -> dict[str, obj
     operating_priorities = []
     if policy_text:
         memo_path = "soony/context/memo_launch_priorities.docx"
-        if "collector's edition first" in policy_text or "collector's pre-orders first" in policy_text:
+        if (
+            "collector's edition first" in policy_text
+            or "collector's pre-orders first" in policy_text
+        ):
             operating_priorities.append(
                 {
                     "title": "Collector's Edition first",
-                    "detail": "Give shared parts to the Collector's cell before Standard; all Collector's copies are pre-ordered.",
+                    "detail": (
+                        "Give shared parts to the Collector's cell before Standard; all"
+                        " Collector's copies are pre-ordered."
+                    ),
                     "source": memo_path,
                 }
             )
-        if "quality & compliance" in policy_text or "quality and compliance" in policy_text:
+        if (
+            "quality & compliance" in policy_text
+            or "quality and compliance" in policy_text
+        ):
             operating_priorities.append(
                 {
                     "title": "Only quality-released parts can ship",
-                    "detail": "Quality & Compliance has the final release decision for every part.",
+                    "detail": (
+                        "Quality & Compliance has the final release decision for every"
+                        " part."
+                    ),
                     "source": memo_path,
                 }
             )
@@ -107,7 +144,10 @@ def build_launch_brief(documents: list[Document] | None = None) -> dict[str, obj
             operating_priorities.append(
                 {
                     "title": "Escalate high-cost expedite decisions",
-                    "detail": "Send expedite options above policy limits to the CPO with the cost and copies recovered.",
+                    "detail": (
+                        "Send expedite options above policy limits to the CPO with the"
+                        " cost and copies recovered."
+                    ),
                     "source": memo_path,
                 }
             )
@@ -127,8 +167,14 @@ def build_launch_brief(documents: list[Document] | None = None) -> dict[str, obj
             {
                 "name": status_source,
                 "facts": [
-                    f"Latest status: {quantity(standard_packed)} of {quantity(standard_required)} Standard packed.",
-                    f"Latest status: {quantity(collector_packed)} of {quantity(collector_required)} Collector's packed.",
+                    (
+                        f"Latest status: {quantity(standard_packed)} of"
+                        f" {quantity(standard_required)} Standard packed."
+                    ),
+                    (
+                        f"Latest status: {quantity(collector_packed)} of"
+                        f" {quantity(collector_required)} Collector's packed."
+                    ),
                 ],
             }
         )
@@ -160,19 +206,31 @@ def build_launch_brief(documents: list[Document] | None = None) -> dict[str, obj
             {
                 "name": "Shortage Prioritizer",
                 "status": "complete",
-                "result": "Prioritized the pre-ordered Collector's Edition per the latest CPO direction.",
+                "result": (
+                    "Prioritized the pre-ordered Collector's Edition per the latest CPO"
+                    " direction."
+                ),
             },
             {
                 "name": "Supplier Chaser",
                 "status": "needs_review",
-                "result": "Prepared supplier questions; supplier ownership must be verified from Soony records.",
+                "result": (
+                    "Prepared supplier questions; supplier ownership must be verified"
+                    " from Soony records."
+                ),
             },
         ],
         "sources": sources,
         "operating_priorities": operating_priorities,
         "limitations": [
-            "Supplier assignments, purchase orders, goods receipts, and shipment confirmations have not been connected yet.",
-            "No supplier email is sent automatically. Review and approve any follow-up before sending.",
+            (
+                "Supplier assignments, purchase orders, goods receipts, and shipment"
+                " confirmations have not been connected yet."
+            ),
+            (
+                "No supplier email is sent automatically. Review and approve any"
+                " follow-up before sending."
+            ),
         ],
     }
 
@@ -198,8 +256,12 @@ def build_supplier_draft(
             - current_status.get("standard", (STANDARD_REQUIRED, STANDARD_PACKED, 0))[1]
         ),
         "Collector's Edition": int(
-            current_status.get("collector", (COLLECTOR_REQUIRED, COLLECTOR_PACKED, 0))[0]
-            - current_status.get("collector", (COLLECTOR_REQUIRED, COLLECTOR_PACKED, 0))[1]
+            current_status.get("collector", (COLLECTOR_REQUIRED, COLLECTOR_PACKED, 0))[
+                0
+            ]
+            - current_status.get(
+                "collector", (COLLECTOR_REQUIRED, COLLECTOR_PACKED, 0)
+            )[1]
         ),
     }
     if edition not in quantities:
@@ -210,19 +272,21 @@ def build_supplier_draft(
         "to": "Supplier contact required — verify against Soony supplier master",
         "subject": f"URGENT: Grand Heist 6 {edition} pack-out confirmation",
         "body": (
-            f"Hello,\n\n"
-            f"Soony's latest launch status shows {remaining:,} {edition} units still to pack "
-            f"for the Grand Heist 6 day-one requirement. Please confirm:\n"
-            "1. Current packed quantity and remaining quantity at your site.\n"
-            "2. Hour-by-hour pack-out plan and the time the final units will be ready.\n"
-            "3. Any material, quality, staffing, or equipment issue that could delay completion.\n"
-            "4. Dispatch readiness and the earliest truck handover time to Hamburg.\n\n"
-            "The release deadline is Sunday 22 November at 20:00. If any commitment is at risk, "
-            "please state the shortfall and latest recovery option now.\n\n"
-            "Please do not treat this message as a confirmed order change.\n"
+            f"Hello,\n\nSoony's latest launch status shows {remaining:,} {edition}"
+            " units still to pack for the Grand Heist 6 day-one requirement. Please"
+            " confirm:\n1. Current packed quantity and remaining quantity at your"
+            " site.\n2. Hour-by-hour pack-out plan and the time the final units will"
+            " be ready.\n3. Any material, quality, staffing, or equipment issue that"
+            " could delay completion.\n4. Dispatch readiness and the earliest truck"
+            " handover time to Hamburg.\n\nThe release deadline is Sunday 22 November"
+            " at 20:00. If any commitment is at risk, please state the shortfall and"
+            " latest recovery option now.\n\nPlease do not treat this message as a"
+            " confirmed order change.\n"
         ),
         "status": "draft_for_human_review",
-        "evidence": f"Latest launch status; {remaining:,} {edition} units remain unpacked.",
+        "evidence": (
+            f"Latest launch status; {remaining:,} {edition} units remain unpacked."
+        ),
     }
 
 
@@ -246,7 +310,11 @@ def _latest_edition_status(
 ) -> dict[str, tuple[int, int, int]]:
     """Read edition quantities from the dedicated latest-status workbook."""
     status = next(
-        (document for document in documents if document.path.endswith("launch_status.xlsx")),
+        (
+            document
+            for document in documents
+            if document.path.endswith("launch_status.xlsx")
+        ),
         None,
     )
     if not status:
@@ -255,7 +323,11 @@ def _latest_edition_status(
     for row in status.rows:
         values = {_normalize_key(key): value for key, value in row.items()}
         name = str(values.get("name", values.get("edition", ""))).casefold()
-        edition_key = "collector" if "collector" in name else "standard" if "standard" in name else ""
+        edition_key = (
+            "collector"
+            if "collector" in name
+            else "standard" if "standard" in name else ""
+        )
         required = _quantity(values.get("dayonedemand", values.get("required")))
         packed = _quantity(values.get("packed"))
         rate = _quantity(values.get("rateperhour")) or 0
@@ -278,13 +350,19 @@ def _component_change_risks(
         magnets_per_edition = 0
         for row in bom.rows:
             values = {_normalize_key(key): value for key, value in row.items()}
-            if values.get("parentid") == "FG-GH6-CE" and values.get("childid") == "CMP-MAG-005":
+            if (
+                values.get("parentid") == "FG-GH6-CE"
+                and values.get("childid") == "CMP-MAG-005"
+            ):
                 magnets_per_edition = _quantity(values.get("qtyper")) or 0
                 break
         magnet_stock = 0
         for row in stock.rows:
             values = {_normalize_key(key): value for key, value in row.items()}
-            if values.get("materialid") == "CMP-MAG-005" and values.get("site") == "DC-HAM":
+            if (
+                values.get("materialid") == "CMP-MAG-005"
+                and values.get("site") == "DC-HAM"
+            ):
                 magnet_stock += _quantity(values.get("quantity")) or 0
         magnet_need = collector_remaining * magnets_per_edition
         if magnets_per_edition and magnet_need > magnet_stock:
@@ -292,10 +370,22 @@ def _component_change_risks(
                 {
                     "severity": "critical",
                     "title": "Collector's Edition is short of lid magnets",
-                    "detail": f"{quantity(magnet_need)} magnets are needed for the remaining {quantity(collector_remaining)} Collector's copies; {quantity(magnet_stock)} are in the latest stock snapshot.",
-                    "evidence": "soony/master/bom.csv · FG-GH6-CE uses 4 × CMP-MAG-005; soony/erp/stock_snapshot.csv · DC-HAM stock",
-                    "owner": "Mei Lin · Buyer, Collector's Items; escalate to Dr. Maren Vogt",
-                    "action": "Escalate now: confirm physical stock, locate an approved source, and get Quality & Compliance release before packing.",
+                    "detail": (
+                        f"{quantity(magnet_need)} magnets are needed for the remaining"
+                        f" {quantity(collector_remaining)} Collector's copies;"
+                        f" {quantity(magnet_stock)} are in the latest stock snapshot."
+                    ),
+                    "evidence": (
+                        "soony/master/bom.csv · FG-GH6-CE uses 4 × CMP-MAG-005;"
+                        " soony/erp/stock_snapshot.csv · DC-HAM stock"
+                    ),
+                    "owner": (
+                        "Mei Lin · Buyer, Collector's Items; escalate to Dr. Maren Vogt"
+                    ),
+                    "action": (
+                        "Escalate now: confirm physical stock, locate an approved"
+                        " source, and get Quality & Compliance release before packing."
+                    ),
                 }
             )
 
@@ -309,7 +399,8 @@ def _component_change_risks(
             if (
                 values.get("childid") == "CMP-GAM-004"
                 and str(values.get("action", "")).casefold() == "revision"
-                and str(values.get("useupoldrev", "")).casefold() not in {"y", "yes", "true"}
+                and str(values.get("useupoldrev", "")).casefold()
+                not in {"y", "yes", "true"}
             ):
                 old_rev = values.get("revold", "?")
                 new_rev = values.get("revnew", "?")
@@ -317,10 +408,24 @@ def _component_change_risks(
                     {
                         "severity": "high",
                         "title": "Old sleeve artwork must not enter launch pack-out",
-                        "detail": f"CMP-GAM-004 changed from revision {old_rev} to {new_rev}; the change notice says old-revision stock cannot be used.",
-                        "evidence": f"{revision_file.path} · row {index}; soony/context/memo_launch_priorities.docx",
-                        "owner": "Paul Winter · Print & Packaging; Clara Weiss · Quality & Compliance",
-                        "action": "Confirm all sleeves allocated to Grand Heist 6 are released revision C before packing; quarantine older revision stock.",
+                        "detail": (
+                            f"CMP-GAM-004 changed from revision {old_rev} to {new_rev};"
+                            " the change notice says old-revision stock cannot be"
+                            " used."
+                        ),
+                        "evidence": (
+                            f"{revision_file.path} · row {index};"
+                            " soony/context/memo_launch_priorities.docx"
+                        ),
+                        "owner": (
+                            "Paul Winter · Print & Packaging; Clara Weiss · Quality &"
+                            " Compliance"
+                        ),
+                        "action": (
+                            "Confirm all sleeves allocated to Grand Heist 6 are"
+                            " released revision C before packing; quarantine older"
+                            " revision stock."
+                        ),
                     }
                 )
                 break

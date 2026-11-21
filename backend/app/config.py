@@ -10,6 +10,13 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://postgres:postgres@localhost:5432/hackathon"
     )
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    # Folder holding the confidential Soony data (contains soony/ and suppliers/)
+    data_dir: str = "~/Desktop/soony-data"
+    # Soony customer portal API; the team token is on the portal Settings page
+    portal_url: str = (
+        "https://start-hack-portal-cxh3crbdaef2f8gt.westeurope-01.azurewebsites.net"
+    )
+    portal_token: str | None = None
     # Provider-agnostic LLM settings, used with the OpenAI SDK. Point
     # llm_base_url at any OpenAI-compatible endpoint (OpenAI, Ollama, Groq, ...).
     llm_model: str | None = None
@@ -19,7 +26,7 @@ class Settings(BaseSettings):
     soony_portal_token: str | None = None
     soony_portal_token_header: str = "Authorization"
     soony_portal_token_prefix: str = "Bearer"
-    data_dir: Path = Path(__file__).resolve().parents[2] / ".local_data"
+    archive_dir: Path = Path(__file__).resolve().parents[2] / ".local_data"
 
 
 settings = Settings()

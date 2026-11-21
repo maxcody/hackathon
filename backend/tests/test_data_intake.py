@@ -1,7 +1,7 @@
 """Checks for archive intake and procurement risk triage."""
 
-import io
 import hashlib
+import io
 import tempfile
 import unittest
 import zipfile
@@ -56,9 +56,7 @@ class DataIntakeTests(unittest.TestCase):
 
     def test_matches_quantity_columns_in_chinese(self) -> None:
         documents = parse_archive(
-            make_archive(
-                {"orders.csv": "订购数量,确认数量\n100,90\n"}
-            )
+            make_archive({"orders.csv": "订购数量,确认数量\n100,90\n"})
         )
 
         risks = detect_risks(documents)
@@ -91,12 +89,8 @@ class DataIntakeTests(unittest.TestCase):
     def test_archive_store_detects_supplier_bank_detail_change(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             store = ArchiveStore(Path(temporary_directory))
-            first = make_archive(
-                {"suppliers.csv": "Supplier ID,IBAN\nS-1,DE001\n"}
-            )
-            second = make_archive(
-                {"suppliers.csv": "Supplier ID,IBAN\nS-1,DE002\n"}
-            )
+            first = make_archive({"suppliers.csv": "Supplier ID,IBAN\nS-1,DE001\n"})
+            second = make_archive({"suppliers.csv": "Supplier ID,IBAN\nS-1,DE002\n"})
             store.import_archive(first)
             result = store.import_archive(second)
 

@@ -5,10 +5,9 @@ import email.policy
 import hashlib
 import io
 import json
-import re
 import unicodedata
-import zipfile
 import xml.etree.ElementTree as ET
+import zipfile
 from dataclasses import dataclass
 from datetime import date, datetime
 from email.parser import BytesParser
@@ -76,36 +75,77 @@ DISRUPTION_TERMS = (
 )
 FIELD_ALIASES = {
     "ordered": (
-        "orderedquantity", "orderquantity", "orderedqty", "orderqty",
-        "quantityordered", "poquantity", "bestellmenge", "zamowionailosc",
-        "주문수량", "订购数量", "訂購數量",
+        "orderedquantity",
+        "orderquantity",
+        "orderedqty",
+        "orderqty",
+        "quantityordered",
+        "poquantity",
+        "bestellmenge",
+        "zamowionailosc",
+        "주문수량",
+        "订购数量",
+        "訂購數量",
     ),
     "confirmed": (
-        "confirmedquantity", "confirmationquantity", "confirmedqty",
-        "acknowledgedquantity", "acknowledgedqty", "bestatigtebestellmenge",
-        "potwierdzonailosc", "확인수량", "确认数量", "確認數量",
+        "confirmedquantity",
+        "confirmationquantity",
+        "confirmedqty",
+        "acknowledgedquantity",
+        "acknowledgedqty",
+        "bestatigtebestellmenge",
+        "potwierdzonailosc",
+        "확인수량",
+        "确认数量",
+        "確認數量",
     ),
     "received": (
-        "receivedquantity", "deliveredquantity", "goodsreceivedquantity",
-        "receivedqty", "deliveredqty", "geliefertemenge", "otrzymanailosc",
-        "입고수량", "收货数量", "已收货数量",
+        "receivedquantity",
+        "deliveredquantity",
+        "goodsreceivedquantity",
+        "receivedqty",
+        "deliveredqty",
+        "geliefertemenge",
+        "otrzymanailosc",
+        "입고수량",
+        "收货数量",
+        "已收货数量",
     ),
     "required": (
-        "requiredquantity", "requiredqty", "materialrequirement", "demandquantity",
+        "requiredquantity",
+        "requiredqty",
+        "materialrequirement",
+        "demandquantity",
     ),
     "available": (
-        "availablequantity", "availableqty", "freequantity", "unallocatedstock",
+        "availablequantity",
+        "availableqty",
+        "freequantity",
+        "unallocatedstock",
         "stockavailable",
     ),
     "status": ("status", "deliverystatus", "shipmentstatus", "confirmationstatus"),
     "eta": (
-        "eta", "expectedarrival", "expecteddeliverydate", "promiseddeliverydate",
-        "deliverydate", "arrivaldate", "liefertermin", "przewidywanadatadostawy",
-        "예상도착일", "预计到达日期", "預計到達日期",
+        "eta",
+        "expectedarrival",
+        "expecteddeliverydate",
+        "promiseddeliverydate",
+        "deliverydate",
+        "arrivaldate",
+        "liefertermin",
+        "przewidywanadatadostawy",
+        "예상도착일",
+        "预计到达日期",
+        "預計到達日期",
     ),
     "supplier": (
-        "supplierid", "suppliernumber", "suppliername", "vendorid", "vendorname",
-        "supplier", "vendor",
+        "supplierid",
+        "suppliernumber",
+        "suppliername",
+        "vendorid",
+        "vendorname",
+        "supplier",
+        "vendor",
     ),
     "bank": (
         "iban",
@@ -223,15 +263,17 @@ def _parse_document(path: str, raw: bytes, digest: str) -> Document | None:
         if suffix == ".docx":
             with zipfile.ZipFile(io.BytesIO(raw)) as package:
                 root = ET.fromstring(package.read("word/document.xml"))
-            namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+            namespace = {
+                "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            }
             paragraphs = [
-                "".join(node.text or "" for node in paragraph.findall(".//w:t", namespace))
+                "".join(
+                    node.text or "" for node in paragraph.findall(".//w:t", namespace)
+                )
                 for paragraph in root.findall(".//w:p", namespace)
             ]
             return Document(path, digest, "\n".join(paragraphs), [])
-        image_suffixes = {
-            ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"
-        }
+        image_suffixes = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
         if suffix in image_suffixes:
             return Document(
                 path,
@@ -257,8 +299,7 @@ def _parse_document(path: str, raw: bytes, digest: str) -> Document | None:
         if suffix in {".csv", ".tsv"}:
             dialect = _csv_dialect(text, suffix)
             rows = [
-                dict(row)
-                for row in csv.DictReader(io.StringIO(text), dialect=dialect)
+                dict(row) for row in csv.DictReader(io.StringIO(text), dialect=dialect)
             ]
             return Document(path, digest, text, rows)
         if suffix == ".json":
@@ -280,11 +321,39 @@ def _parse_document(path: str, raw: bytes, digest: str) -> Document | None:
 def _find_spreadsheet_header(rows: list[tuple[Any, ...]]) -> int | None:
     """Find the first tabular header row after spreadsheet title rows."""
     header_terms = {
-        "date", "dayonedemand", "demand", "packed", "stilltopack", "product",
-        "edition", "name", "part", "component", "supplier", "quantity", "qty",
-        "eta", "status", "materialid", "parentid", "childid", "po", "ponumber",
-        "site", "stock", "required", "confirmed", "received", "line", "revision",
-        "drawingrev", "field", "action", "reference", "shipmentid", "orderid",
+        "date",
+        "dayonedemand",
+        "demand",
+        "packed",
+        "stilltopack",
+        "product",
+        "edition",
+        "name",
+        "part",
+        "component",
+        "supplier",
+        "quantity",
+        "qty",
+        "eta",
+        "status",
+        "materialid",
+        "parentid",
+        "childid",
+        "po",
+        "ponumber",
+        "site",
+        "stock",
+        "required",
+        "confirmed",
+        "received",
+        "line",
+        "revision",
+        "drawingrev",
+        "field",
+        "action",
+        "reference",
+        "shipmentid",
+        "orderid",
     }
     for index, row in enumerate(rows):
         labels = [
@@ -425,8 +494,10 @@ def compare_record_changes(
                 {
                     "kind": "changed",
                     "path": f"{path} · {key}",
-                    "summary": "Record updated; changed fields: "
-                    + ", ".join(changed_fields[:8]),
+                    "summary": (
+                        "Record updated; changed fields: "
+                        + ", ".join(changed_fields[:8])
+                    ),
                 }
             )
     return events
@@ -536,8 +607,19 @@ def _record_risks(
 
     status = str(_first(normalized, FIELD_ALIASES["status"]) or "").casefold()
     status_terms = (
-        "delay", "late", "blocked", "cancelled", "canceled", "short ship",
-        "disruption", "stuck", "verzög", "opóźn", "지연", "지연됨", "延迟",
+        "delay",
+        "late",
+        "blocked",
+        "cancelled",
+        "canceled",
+        "short ship",
+        "disruption",
+        "stuck",
+        "verzög",
+        "opóźn",
+        "지연",
+        "지연됨",
+        "延迟",
     )
     if _contains_any(status, status_terms):
         output.append(
@@ -559,7 +641,8 @@ def _record_risks(
                 "medium",
                 "Recorded delivery date is after the launch day",
                 source,
-                f"Recorded date: {eta.isoformat()}. Confirm whether this replenishment is needed for day-one demand and whether current stock covers it.",
+                f"Recorded date: {eta.isoformat()}. Confirm whether this replenishment"
+                " is needed for day-one demand and whether current stock covers it.",
             )
         )
     if eta and eta < date.today():

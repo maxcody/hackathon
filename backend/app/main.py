@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db import engine
-from app.routers import items, launch
+from app.routers import files, findings, launch, master, sheets, status, sync
 
 app = FastAPI(title="Linewatch — Soony Launch Control")
 static_dir = Path(__file__).parent / "static"
@@ -20,8 +20,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(items.router)
 app.include_router(launch.router)
+app.include_router(files.router)
+app.include_router(findings.router)
+app.include_router(master.router)
+app.include_router(sheets.router)
+app.include_router(status.router)
+app.include_router(sync.router)
 
 
 @app.get("/", include_in_schema=False)

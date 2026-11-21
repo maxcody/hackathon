@@ -18,7 +18,7 @@ from app.services.data_intake import (
 from app.services.launch_control import build_launch_brief, build_supplier_draft
 
 router = APIRouter(prefix="/api", tags=["launch control"])
-archive_store = ArchiveStore(settings.data_dir)
+archive_store = ArchiveStore(settings.archive_dir)
 
 
 @router.get("/launch")
