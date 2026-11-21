@@ -8,6 +8,7 @@ import json
 import re
 import unicodedata
 import zipfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import date, datetime
 from email.parser import BytesParser
@@ -201,13 +202,16 @@ def _parse_document(path: str, raw: bytes, digest: str) -> Document | None:
             workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
             rows: list[dict[str, Any]] = []
             for sheet in workbook.worksheets:
-                iterator = sheet.iter_rows(values_only=True)
-                header_row = next(iterator, [])
+                values = list(sheet.iter_rows(values_only=True))
+                header_index = _find_spreadsheet_header(values)
+                if header_index is None:
+                    continue
+                header_row = values[header_index]
                 headers = [
-                    str(cell or f"column_{index + 1}")
+                    str(cell or f"column_{index + 1}").strip()
                     for index, cell in enumerate(header_row)
                 ]
-                for cells in iterator:
+                for cells in values[header_index + 1 :]:
                     rows.append(
                         {
                             header: value
@@ -217,18 +221,14 @@ def _parse_document(path: str, raw: bytes, digest: str) -> Document | None:
                     )
             return Document(path, digest, "", rows)
         if suffix == ".docx":
-            from docx import Document as WordDocument
-
-            word_document = WordDocument(io.BytesIO(raw))
-            paragraphs = [paragraph.text for paragraph in word_document.paragraphs]
-            tables = [
-                "\n".join(
-                    "\t".join(cell.text for cell in row.cells)
-                    for row in table.rows
-                )
-                for table in word_document.tables
+            with zipfile.ZipFile(io.BytesIO(raw)) as package:
+                root = ET.fromstring(package.read("word/document.xml"))
+            namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+            paragraphs = [
+                "".join(node.text or "" for node in paragraph.findall(".//w:t", namespace))
+                for paragraph in root.findall(".//w:p", namespace)
             ]
-            return Document(path, digest, "\n".join(paragraphs + tables), [])
+            return Document(path, digest, "\n".join(paragraphs), [])
         image_suffixes = {
             ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"
         }
@@ -275,6 +275,26 @@ def _parse_document(path: str, raw: bytes, digest: str) -> Document | None:
         )
     except Exception as error:
         return Document(path, digest, "", [], f"Could not parse: {error}")
+
+
+def _find_spreadsheet_header(rows: list[tuple[Any, ...]]) -> int | None:
+    """Find the first tabular header row after spreadsheet title rows."""
+    header_terms = {
+        "date", "dayonedemand", "demand", "packed", "stilltopack", "product",
+        "edition", "name", "part", "component", "supplier", "quantity", "qty",
+        "eta", "status", "materialid", "parentid", "childid", "po", "ponumber",
+        "site", "stock", "required", "confirmed", "received", "line", "revision",
+        "drawingrev", "field", "action", "reference", "shipmentid", "orderid",
+    }
+    for index, row in enumerate(rows):
+        labels = [
+            _normalize_key(value)
+            for value in row
+            if value is not None and str(value).strip()
+        ]
+        if len(labels) >= 2 and sum(label in header_terms for label in labels) >= 2:
+            return index
+    return None
 
 
 def _json_records(value: Any) -> list[dict[str, Any]]:
@@ -536,11 +556,10 @@ def _record_risks(
     if eta and eta > release_day:
         output.append(
             _risk(
-                "critical",
+                "medium",
                 "Recorded delivery date is after the launch day",
                 source,
-                f"Recorded date: {eta.isoformat()}. Escalate the affected component "
-                "and ask for an approved recovery option.",
+                f"Recorded date: {eta.isoformat()}. Confirm whether this replenishment is needed for day-one demand and whether current stock covers it.",
             )
         )
     if eta and eta < date.today():

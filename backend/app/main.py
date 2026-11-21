@@ -12,6 +12,7 @@ from app.routers import items, launch
 
 app = FastAPI(title="Linewatch — Soony Launch Control")
 static_dir = Path(__file__).parent / "static"
+react_index = static_dir / "react" / "index.html"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.add_middleware(
     CORSMiddleware,
@@ -25,8 +26,9 @@ app.include_router(launch.router)
 
 @app.get("/", include_in_schema=False)
 async def home() -> FileResponse:
-    """Serve the launch control dashboard."""
-    return FileResponse(static_dir / "index.html")
+    """Serve the built React dashboard, with the legacy page as fallback."""
+    index = react_index if react_index.exists() else static_dir / "index.html"
+    return FileResponse(index)
 
 
 @app.get("/health")

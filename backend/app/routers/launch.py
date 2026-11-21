@@ -30,8 +30,9 @@ async def get_launch_brief() -> dict[str, object]:
 @router.post("/agents/run")
 async def run_agents() -> dict[str, object]:
     """Run baseline and imported-data specialists, then prioritize their findings."""
-    brief = build_launch_brief()
-    imported = archive_store.summary()
+    documents = archive_store.documents()
+    brief = build_launch_brief(documents)
+    imported = archive_store.summary(documents)
     data_fields = (
         "imported",
         "file_count",
@@ -230,6 +231,6 @@ async def get_supplier_draft(
 ) -> dict[str, str]:
     """Build a supplier follow-up draft for human approval."""
     try:
-        return build_supplier_draft(edition)
+        return build_supplier_draft(edition, archive_store.documents())
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error

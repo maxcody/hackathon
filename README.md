@@ -10,11 +10,14 @@ An evidence-backed procurement response prototype for the Lio Hack League case. 
 - Archive Monitor compares successive imports and shows new, changed, and removed files.
 - Risk Triage flags supplier bank-change and cyber-compromise notices, weather/port disruption notices, PO confirmation shortfalls, receipts below confirmed quantities, disrupted statuses, and past delivery dates. Findings name their source file and row when available.
 - Evidence and limitations stay visible in the UI and API response.
+- Newer `launch_status.xlsx` quantities supersede the kickoff pack-out counts. The importer also reads CPO priorities from DOCX, multi-row workbook headers, Collector's Edition lid-magnet coverage, and effective component revision changes.
+- ETA-after-launch notices are review signals until a component-level stock check shows they block day-one production; they are not automatically labeled critical.
 
 The Soony portal credentials are not in the repository. Until configured, the dashboard uses only the kickoff baseline and lets you import the portal's ZIP archive manually. The importer handles CSV, TSV, JSON, EML, DOCX, PDF text, and XLSX files. It indexes image scans, scanned PDFs, and unknown formats with a review warning rather than discarding them; OCR is not enabled yet. Detected weather or port events are not assumed to affect a particular order without route and supplier evidence. Bank changes never update payment details; they trigger out-of-band verification advice.
 
 ## Stack
 - FastAPI, async SQLAlchemy 2, asyncpg, Alembic
+- React, TypeScript, and Vite for the launch dashboard
 - LLM calls via the OpenAI SDK, usable with any OpenAI-compatible provider (`LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`)
 - ruff, black, isort, pytest, pre-commit
 
@@ -41,8 +44,15 @@ pip install -r requirements-dev.txt
 Copy-Item .env.example .env
 uvicorn app.main:app --reload
 ```
-API docs: http://localhost:8000/docs
-Dashboard: http://localhost:8000/
+For frontend development, keep the API running in one terminal and start Vite in a second:
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+Open the Vite URL printed in the terminal (normally http://127.0.0.1:5173/). Vite proxies `/api` requests to `http://127.0.0.1:8000`. If the backend is using another port, set the proxy first, for example `$env:VITE_API_PROXY_TARGET="http://127.0.0.1:8001"`.
+
+To build the React dashboard for FastAPI, run `npm run build` from `frontend/`. Then open http://localhost:8000/; FastAPI serves the built React app. API docs: http://localhost:8000/docs.
 
 ## Launch Control API
 - `GET /api/launch` — current evidence-backed readiness brief
