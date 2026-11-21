@@ -14,7 +14,7 @@ import sys
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 
-from app.chat_format import MARKDOWN_GUIDANCE
+from app.chat_format import EMAIL_DRAFT_GUIDANCE, MARKDOWN_GUIDANCE
 from app.config import settings
 from app.data import data_root
 
@@ -22,11 +22,10 @@ CHAT_GUIDANCE = (
     "You are a chat agent in the Linewatch launch-control dashboard for Soony's "
     "Grand Heist 6 launch. Answer briefly and plainly. Your working folder is the "
     "Soony portal data mirror; use the portal tools for fresh data and cite file "
-    "paths. Post confirmed problems with the notifications tools. Before sending "
-    "any email, show the full draft (recipients, subject, body) and send only "
-    "after the user explicitly confirms in a later message. You do have an email "
-    "address: the email tool sends from the team's own address (call sender_info); "
-    "'yourself' or 'the team' means that address."
+    "paths. Post confirmed problems with the notifications tools. You do have an "
+    "email address: the email tool sends from the team's own address (call "
+    "sender_info); 'yourself' or 'the team' means that address. "
+    f"{EMAIL_DRAFT_GUIDANCE}"
 )
 TOOL_SERVERS = ("portal", "notifications", "email")
 
