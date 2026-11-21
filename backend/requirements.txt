@@ -9,4 +9,4 @@ python-dotenv==1.2.4
 python-multipart==0.0.34
 httpx==0.28.1
 email-validator==2.4.0
-litellm==1.110.2
+openai==3.57.0

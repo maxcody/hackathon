@@ -4,7 +4,7 @@ FastAPI + Postgres backend.
 
 ## Stack
 - FastAPI, async SQLAlchemy 2, asyncpg, Alembic
-- Provider-agnostic LLM calls via LiteLLM (`LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`)
+- LLM calls via the OpenAI SDK, usable with any OpenAI-compatible provider (`LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`)
 - ruff, black, isort, pytest, pre-commit
 
 ## Backend structure

@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Project
-FastAPI + Postgres backend in `backend/`. Async SQLAlchemy 2 (asyncpg), Alembic migrations, pydantic-settings config, LLM calls through LiteLLM (`LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`).
+FastAPI + Postgres backend in `backend/`. Async SQLAlchemy 2 (asyncpg), Alembic migrations, pydantic-settings config, LLM calls through the OpenAI SDK, usable with any OpenAI-compatible provider (`LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`).
 
 ## Commands (run from `backend/`, venv active)
 - `docker compose up -d db` (from repo root) starts Postgres

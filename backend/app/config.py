@@ -8,8 +8,8 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://postgres:postgres@localhost:5432/hackathon"
     )
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
-    # Provider-agnostic LLM settings (used with LiteLLM, e.g. "anthropic/<model>",
-    # "openai/<model>", "gemini/<model>", "ollama/<model>")
+    # Provider-agnostic LLM settings, used with the OpenAI SDK. Point
+    # llm_base_url at any OpenAI-compatible endpoint (OpenAI, Ollama, Groq, ...).
     llm_model: str | None = None
     llm_api_key: str | None = None
     llm_base_url: str | None = None
