@@ -2,8 +2,8 @@
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import suppress
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -28,8 +28,11 @@ from app.schemas.agent_workspace import (
 )
 from app.services.agent_workspace import AgentWorkspace
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agent-workspace", tags=["agent workspace"])
 workspace = AgentWorkspace(settings.agents_db)
+# Strong references to chat turns that outlive their stream (asyncio keeps weak ones)
+_running_turns: set[asyncio.Task] = set()
 
 
 @router.get("")
@@ -68,7 +71,8 @@ async def chat_stream(agent_id: str, payload: ChatInput) -> StreamingResponse:
     """Send text deltas followed by the saved conversation as JSON lines."""
 
     async def events() -> AsyncIterator[str]:
-        queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=64)
+        # Unbounded, so the turn never blocks once the client has gone away
+        queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
 
         async def emit(text: str) -> None:
             await queue.put({"type": "delta", "text": text})
@@ -80,19 +84,19 @@ async def chat_stream(agent_id: str, payload: ChatInput) -> StreamingResponse:
             except HTTPException as error:
                 await queue.put({"type": "error", "detail": error.detail})
             except Exception:
+                logger.exception("Chat turn for agent %s failed", agent_id)
                 await queue.put({"type": "error", "detail": "The chat stream failed."})
 
+        # If the client leaves mid-reply, the turn keeps running and is saved, so
+        # the answer is there when the chat is reopened.
         task = asyncio.create_task(finish())
-        try:
-            while True:
-                event = await queue.get()
-                yield json.dumps(event) + "\n"
-                if event["type"] != "delta":
-                    break
-        finally:
-            task.cancel()
-            with suppress(asyncio.CancelledError):
-                await task
+        _running_turns.add(task)
+        task.add_done_callback(_running_turns.discard)
+        while True:
+            event = await queue.get()
+            yield json.dumps(event) + "\n"
+            if event["type"] != "delta":
+                break
 
     return StreamingResponse(
         events(),

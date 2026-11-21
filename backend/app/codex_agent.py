@@ -10,6 +10,7 @@ import asyncio
 import json
 import shutil
 import subprocess
+import sys
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 
@@ -131,7 +132,32 @@ def run_turn(prompt: str, thread_id: str | None) -> tuple[str, str]:
 async def stream_turn(
     prompt: str, thread_id: str | None, emit: Callable[[str], Awaitable[None]]
 ) -> tuple[str, str]:
-    """Stream text from Codex App Server and return its completed reply and thread."""
+    """Stream text from Codex App Server and return its completed reply and thread.
+
+    The Codex process runs on its own event loop in a worker thread: on Windows,
+    uvicorn's loop cannot start subprocesses. Text deltas are handed back to the
+    caller's loop through ``emit``.
+    """
+    caller = asyncio.get_running_loop()
+
+    async def forward(text: str) -> None:
+        await asyncio.wrap_future(asyncio.run_coroutine_threadsafe(emit(text), caller))
+
+    def run() -> tuple[str, str]:
+        loop = asyncio.ProactorEventLoop() if sys.platform == "win32" else None
+        loop = loop or asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(_stream_turn(prompt, thread_id, forward))
+        finally:
+            loop.close()
+
+    return await asyncio.to_thread(run)
+
+
+async def _stream_turn(
+    prompt: str, thread_id: str | None, emit: Callable[[str], Awaitable[None]]
+) -> tuple[str, str]:
+    """Run one streamed Codex turn on the current (subprocess-capable) loop."""
     executable = shutil.which("codex")
     if executable is None:
         raise CodexError("The Codex CLI is not installed on the backend machine.")
