@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db import engine
-from app.routers import files, findings, status, sync
+from app.routers import files, findings, master, status, sync
 
 app = FastAPI(title="Hackathon API")
 app.add_middleware(
@@ -15,6 +15,7 @@ app.add_middleware(
 )
 app.include_router(files.router)
 app.include_router(findings.router)
+app.include_router(master.router)
 app.include_router(status.router)
 app.include_router(sync.router)
 
