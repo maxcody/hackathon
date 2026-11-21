@@ -34,8 +34,31 @@ function parseDraft(json: string): Draft | null {
   }
 }
 
+const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
+const FIELD = (name: string) => new RegExp(`^[ \\t>*_-]*\\**${name}\\**\\s*:?\\**\\s*:?\\s*(.*)$`, "im");
+
+/** Read a draft an agent wrote as plain Markdown ("To:", "Subject:", "Body"), or null. */
+function parseMarkdownDraft(text: string): { draft: Draft; before: string } | null {
+  const to = text.match(FIELD("To"));
+  const subject = text.match(FIELD("Subject"));
+  if (!to || !subject || (subject.index ?? 0) < (to.index ?? 0)) return null;
+  const recipients = to[1].match(EMAIL);
+  if (!recipients) return null;
+  const cc = text.match(FIELD("Cc"));
+  let body = text.slice((subject.index ?? 0) + subject[0].length);
+  body = body.replace(/^\s*\**\s*Body\s*\**\s*:?\s*\**\s*\n/i, "");
+  body = body.replace(/\n+\s*(?:Reply|Antworte)\b[^\n]*(?:send|confirm|senden|bestätig)[^\n]*\s*$/i, "");
+  body = body.replace(/\*\*(.+?)\*\*/g, "$1").trim();
+  const draft = { to: [...new Set(recipients)], cc: cc ? [...new Set(cc[1].match(EMAIL) ?? [])] : [], subject: subject[1].replace(/\*\*/g, "").trim(), body };
+  return body ? { draft, before: text.slice(0, to.index).trim() } : null;
+}
+
 /** Split a message into Markdown text and email drafts; an unfinished block shows as drafting. */
 export function splitDrafts(text: string): Segment[] {
+  if (!text.includes("```email-draft")) {
+    const loose = parseMarkdownDraft(text);
+    if (loose) return [...(loose.before ? [{ kind: "text" as const, text: loose.before }] : []), { kind: "draft", draft: loose.draft }];
+  }
   const segments: Segment[] = [];
   let last = 0;
   for (const match of text.matchAll(BLOCK)) {

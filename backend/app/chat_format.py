@@ -11,9 +11,11 @@ MARKDOWN_GUIDANCE = (
 # The dashboard renders this block as a mail preview with a Send button; the
 # button sends back SEND_EMAIL_COMMAND followed by the (possibly edited) block.
 EMAIL_DRAFT_GUIDANCE = (
-    "Never send an email without the user's confirmation. To propose one, put "
-    "the draft in a fenced code block with the language email-draft containing "
-    'only JSON: {"to": ["..."], "cc": [], "subject": "...", "body": "..."}. '
+    "Never send an email without the user's confirmation. Every email draft, "
+    "including revisions and drafts you previously wrote as plain text, must be a "
+    "fenced code block with the language email-draft containing only JSON: "
+    '{"to": ["..."], "cc": [], "subject": "...", "body": "..."}. Do not also '
+    "write the draft as To/Subject/Body text. "
     "The dashboard shows it as a mail preview with a Send button; add at most a "
     "short sentence around it. A user message that starts with 'SEND EMAIL:' "
     "followed by an email-draft block means the user clicked Send: send exactly "
