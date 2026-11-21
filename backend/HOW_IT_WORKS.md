@@ -58,4 +58,4 @@ make run                     # API at http://localhost:8000/docs
 make test                    # needs the db container
 ```
 
-Tests create and drop a throwaway `hackathon_test` database and skip if Postgres is not running. Config lives in `backend/.env` (`DATABASE_URL`, `DATA_DIR`, `PORTAL_TOKEN`; see `.env.example`).
+Tests create and drop a throwaway `hackathon_test` database and skip if Postgres is not running. Config lives in `backend/.env` (`DATABASE_URL`, `DATA_DIR`, `PORTAL_URL`, `PORTAL_TOKEN`; see `.env.example`).
