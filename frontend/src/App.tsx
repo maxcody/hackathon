@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { importMaster, importSheets, listNotifications, syncPortal, updateNotificationData } from "./api";
 import type { Notification, Severity } from "./types";
 import { AgentsPage } from "./AgentsPage";
@@ -161,7 +161,7 @@ function Dashboard({ notifications, setNotifications }: { notifications: Notific
 
   return (
     <main id="overview" className="main-content">
-      <header className="topbar"><div className="mobile-brand"><span className="brand-mark">L</span> linewatch<span className="brand-period">.</span></div><div className="breadcrumbs">Workspaces <span>/</span> Soony <span>/</span> <strong>Launch overview</strong></div><div className="topbar-right"><span className="live-badge"><i /> LIVE VIEW</span><span className="top-divider" /><span className="top-avatar">S</span></div></header>
+      <header className="topbar"><div className="mobile-brand"><span className="brand-mark">L</span> linewatch<span className="brand-period">.</span></div><div className="breadcrumbs">Workspaces <span>/</span> Soony <span>/</span> <strong>Launch overview</strong></div><div className="topbar-right"><span className="live-badge"><i /> LIVE VIEW</span><NotificationBell notifications={notifications} /><span className="top-divider" /><span className="top-avatar">S</span></div></header>
       <div className="content-wrap">
         <section className="hero-row">
           <div><div className="eyebrow"><span className="eyebrow-mark" /> RELEASE OPERATIONS <span className="eyebrow-slash">/</span> 01</div><h1>Keep the line <em>running.</em></h1><p className="hero-subtitle">What the agents found in the data, and what needs a person right now.</p></div>
@@ -183,6 +183,50 @@ function Dashboard({ notifications, setNotifications }: { notifications: Notific
         <footer className="page-footer"><span><b>LINEWATCH</b> <i>·</i> SOONY LAUNCH CONTROL</span><span>Evidence first. Human decisions always.</span></footer>
       </div>
     </main>
+  );
+}
+
+/** Bell in the top bar: open-notification count and a dropdown of the latest ones. */
+function NotificationBell({ notifications }: { notifications: Notification[] }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const openItems = notifications.filter(isOpen).sort((a, b) => b.seen_at.localeCompare(a.seen_at));
+  const urgent = openItems.some((n) => severityOf(n) === "critical");
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (event: MouseEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onClick); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  return (
+    <div className="bell" ref={root}>
+      <button className="bell-button" onClick={() => setOpen((value) => !value)} aria-label={`Notifications, ${openItems.length} open`} aria-expanded={open} aria-haspopup="true">
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /><path d="M10 20.5a2 2 0 0 0 4 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
+        {openItems.length > 0 && <span className={`bell-count${urgent ? " bell-urgent" : ""}`}>{openItems.length > 99 ? "99+" : openItems.length}</span>}
+      </button>
+      {open && (
+        <div className="bell-panel" role="dialog" aria-label="Latest notifications">
+          <div className="bell-head"><strong>Notifications</strong><span>{openItems.length} open</span></div>
+          {openItems.length ? (
+            <ul className="bell-list">
+              {openItems.slice(0, 6).map((n) => (
+                <li key={n.id}>
+                  <a href="#notifications" onClick={() => setOpen(false)}>
+                    <i className={`bell-dot severity-${severityClass[severityOf(n)]}`} />
+                    <span><strong>{n.data.title || `${n.attr} mismatch`}</strong><small>{severityOf(n)} · {localTime(n.seen_at)}</small></span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="bell-empty">Nothing open right now.</p>}
+          <a className="bell-all" href="#notifications" onClick={() => setOpen(false)}>View all notifications →</a>
+        </div>
+      )}
+    </div>
   );
 }
 
