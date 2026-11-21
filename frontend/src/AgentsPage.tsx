@@ -99,7 +99,16 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
   const [pending, setPending] = useState<string | null>(null);
   const [partialReply, setPartialReply] = useState("");
   const [error, setError] = useState("");
+  const [started, setStarted] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [worked, setWorked] = useState<{ index: number; seconds: number } | null>(null);
   const thread = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!pending) return;
+    const timer = window.setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, [pending, started]);
 
   useEffect(() => {
     let active = true;
@@ -120,15 +129,22 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
     const text = message.trim();
     if (!text || pending) return;
     setMessage("");
+    const box = event.currentTarget.querySelector("textarea");
+    if (box) box.style.height = "auto";
     if (!(await submit(text))) setMessage(text);
   }
 
   /** Post a message to the agent and stream its reply; returns whether it succeeded. */
   async function submit(text: string): Promise<boolean> {
+    const start = Date.now();
     setPending(text);
+    setStarted(start);
+    setElapsed(0);
     setError("");
     try {
-      setAgent(await sendAgentMessage(id, text, (delta) => setPartialReply((reply) => reply + delta)));
+      const updated = await sendAgentMessage(id, text, (delta) => setPartialReply((reply) => reply + delta));
+      setAgent(updated);
+      setWorked({ index: updated.messages.length - 1, seconds: Math.max(1, Math.round((Date.now() - start) / 1000)) });
       return true;
     } catch (reason) {
       setError(errorMessage(reason));
@@ -147,27 +163,28 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
           {agent.messages.length === 0 && !pending && <div className="agent-empty-thread"><span className="agent-avatar" aria-hidden="true">{agent.name.slice(0, 1).toUpperCase()}</span><h2>{agent.name}</h2><p>Start a conversation</p></div>}
           {agent.messages.map((entry, index) => (
             <article key={index} className={`agent-message agent-message-${entry.role}`}>
-              <strong>{entry.role === "user" ? "You" : agent.name}</strong>
+              {worked?.index === index && <p className="agent-worked">Worked for {worked.seconds}s</p>}
               {entry.role === "assistant"
                 ? <AgentReply text={entry.content} onSend={index === agent.messages.length - 1 && !pending ? (draft) => void submit(sendCommand(draft)) : undefined} sent={agent.messages.slice(index + 1).map((later) => later.role === "user" ? parseSendCommand(later.content) : null).filter((draft): draft is Draft => draft !== null)} />
                 : <UserMessage text={entry.content} />}
             </article>
           ))}
           {pending && <>
-            <article className="agent-message agent-message-user"><strong>You</strong><UserMessage text={pending} /></article>
-            {partialReply ? <article className="agent-message agent-message-assistant"><strong>{agent.name}</strong><AgentReply text={partialReply} sent={[]} /></article> : <p className="agent-reply-status" role="status">{agent.name} is replying…</p>}
+            <article className="agent-message agent-message-user"><UserMessage text={pending} /></article>
+            <p className="agent-reply-status" role="status">Working… {elapsed}s</p>
+            {partialReply && <article className="agent-message agent-message-assistant"><AgentReply text={partialReply} sent={[]} /></article>}
           </>}
           </div>
         </div>
         <form onSubmit={send} className="agent-composer">
           {error && <p className="message message-error" role="alert">{error}</p>}
-          <textarea aria-label={`Message ${agent.name}`} placeholder={`Message ${agent.name}`} required rows={2} maxLength={8000} disabled={!!pending} value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => {
+          <textarea aria-label={`Message ${agent.name}`} placeholder={`Message ${agent.name}`} required rows={1} onInput={(event) => { const box = event.currentTarget; box.style.height = "auto"; box.style.height = `${box.scrollHeight}px`; }} maxLength={8000} disabled={!!pending} value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
               event.currentTarget.form?.requestSubmit();
             }
           }} />
-          <button className="button button-dark" disabled={!!pending || !message.trim()}>Send</button>
+          <button className="agent-send" aria-label="Send" disabled={!!pending || !message.trim()}><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
         </form>
       </> : error ? <p className="message message-error" role="alert">{error}</p> : <p role="status">Loading conversation…</p>}
     </section>
