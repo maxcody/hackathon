@@ -25,25 +25,3 @@
 .bell-empty{margin:0;padding:18px 16px;font-size:12.5px;color:var(--muted)}
 .bell-all{display:block;padding:11px 16px;border-top:1px solid var(--line);font-size:12px;font-weight:600;color:var(--green);text-decoration:none}
 .bell-all:hover{background:#f6f8f3}
-/* Plain overview (replaces hero, banners and decorative labels) */
-.sidebar{width:208px;background:#1e3028;padding:20px 12px}
-.main-content{margin-left:208px}
-.brand{padding:0 10px 2px;font:700 16px "DM Sans",sans-serif;letter-spacing:0}
-.side-project{margin:0 0 22px;padding:0 10px;color:#93a69a;font-size:12px}
-.nav-link{min-height:34px;font-size:13px}
-.nav-count{margin-left:auto;padding:1px 7px;border-radius:10px;background:#bb4d42;color:#fff;font:600 11px "DM Sans",sans-serif;position:static}
-.page-head{display:flex;justify-content:space-between;align-items:center;gap:16px;max-width:1440px;margin:0 auto;padding:22px clamp(16px,4.5vw,70px) 18px;border-bottom:1px solid var(--line)}
-.page-head h1{margin:0;font:700 22px "DM Sans",sans-serif;letter-spacing:-.2px;color:var(--ink)}
-.launch-line{margin:4px 0 0;color:var(--muted);font-size:13px}
-.launch-line strong{color:var(--amber);font-weight:600}
-.page-actions{display:flex;align-items:center;gap:10px}
-.content-wrap{padding-top:22px}
-.list-head{margin-bottom:12px}
-.list-head h2{display:flex;align-items:center;gap:8px;margin:0;font:600 16px "DM Sans",sans-serif;color:var(--ink)}
-.list-head h2 span{padding:1px 8px;border-radius:10px;background:#e6ece2;color:#36543c;font-size:12px}
-.list-head p{margin:4px 0 0;color:var(--muted);font-size:13px}
-.list-empty{margin:0;padding:28px 0;color:var(--muted);font-size:13.5px}
-.list-empty a{color:var(--green)}
-.bell-button{border-color:transparent;background:transparent}
-.loading-screen p{color:var(--muted)}
-@media(max-width:600px){.sidebar{width:54px}.main-content{margin-left:54px}.side-project{display:none}.page-head{flex-wrap:wrap}}
