@@ -6,10 +6,12 @@ Run it over stdio from an MCP client, e.g. in ``~/.codex/config.toml``::
     command = "<repo>/.venv/Scripts/python.exe"
     args = ["<repo>/backend/scripts/email_mcp.py"]
 
-Settings come from ``backend/.env``: ``SMTP_USER`` and ``SMTP_APP_PASSWORD``
-are required; ``SMTP_HOST``, ``SMTP_PORT`` and ``EMAIL_ALLOWED_DOMAINS`` are
-optional. Recipients outside the allowed domains (plus the sender's own
-address) are refused, and every sent message is appended to an audit log.
+Settings come from ``backend/.env``: ``SMTP_USER`` (the sender) plus either
+``BREVO_API_KEY`` (Brevo's HTTPS API, works where SMTP is blocked) or
+``SMTP_APP_PASSWORD`` (Gmail SMTP); ``SMTP_HOST``, ``SMTP_PORT`` and
+``EMAIL_ALLOWED_DOMAINS`` are optional. Recipients outside the allowed
+domains (plus the sender's own address) are refused, and every sent message
+is appended to an audit log.
 """
 
 import json
@@ -19,6 +21,7 @@ from email.message import EmailMessage
 from email.utils import make_msgid
 from pathlib import Path
 
+import httpx
 import truststore
 from mcp.server import MCPServer
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -41,6 +44,46 @@ class EmailSettings(BaseSettings):
     smtp_app_password: str | None = None
     # Comma-separated; defaults to the hackathon's supplier sandbox domain.
     email_allowed_domains: str = "suppliers.juliansibbing.de"
+    # Brevo's HTTPS API, used instead of SMTP when set (works where SMTP is blocked)
+    brevo_api_key: str | None = None
+
+
+def send_via_brevo(message: EmailMessage, settings: EmailSettings) -> str:
+    """Send ``message`` through Brevo's transactional email API.
+
+    Args:
+        message: The composed message; From must be a sender verified in Brevo.
+        settings: Settings holding ``brevo_api_key``.
+
+    Returns:
+        Brevo's Message-ID.
+
+    Raises:
+        httpx.HTTPError: If Brevo is unreachable or rejects the message.
+    """
+    payload = {
+        "sender": {"email": message["From"]},
+        "to": [{"email": a.strip()} for a in message["To"].split(",")],
+        "subject": message["Subject"],
+        "textContent": message.get_content(),
+    }
+    if message["Cc"]:
+        payload["cc"] = [{"email": a.strip()} for a in message["Cc"].split(",")]
+    if message["Reply-To"]:
+        payload["replyTo"] = {"email": message["Reply-To"]}
+    response = httpx.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={"api-key": settings.brevo_api_key},
+        json=payload,
+        timeout=30,
+    )
+    if response.is_error:
+        raise httpx.HTTPStatusError(
+            f"Brevo {response.status_code}: {response.text[:300]}",
+            request=response.request,
+            response=response,
+        )
+    return response.json().get("messageId", message["Message-ID"])
 
 
 def blocked_recipients(recipients: list[str], settings: EmailSettings) -> list[str]:
@@ -117,8 +160,10 @@ def send_email(
         A confirmation with the Message-ID, or the reason nothing was sent.
     """
     settings = EmailSettings()
-    if not settings.smtp_user or not settings.smtp_app_password:
-        return "Not sent: SMTP_USER and SMTP_APP_PASSWORD are not configured."
+    if not settings.smtp_user or not (
+        settings.brevo_api_key or settings.smtp_app_password
+    ):
+        return "Not sent: set SMTP_USER and BREVO_API_KEY (or SMTP_APP_PASSWORD)."
     cc = cc or []
     if not to:
         return "Not sent: no recipients."
@@ -138,11 +183,16 @@ def send_email(
     message.set_content(body)
 
     try:
-        with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=30) as s:
-            s.login(settings.smtp_user, settings.smtp_app_password)
-            s.send_message(message)
-    except (smtplib.SMTPException, OSError) as error:
-        return f"Not sent: SMTP error ({type(error).__name__}: {error})"
+        if settings.brevo_api_key:
+            message.replace_header("Message-ID", send_via_brevo(message, settings))
+        else:
+            with smtplib.SMTP_SSL(
+                settings.smtp_host, settings.smtp_port, timeout=30
+            ) as s:
+                s.login(settings.smtp_user, settings.smtp_app_password)
+                s.send_message(message)
+    except (smtplib.SMTPException, httpx.HTTPError, OSError) as error:
+        return f"Not sent: {type(error).__name__}: {error}"
 
     SENT_LOG.parent.mkdir(parents=True, exist_ok=True)
     with SENT_LOG.open("a", encoding="utf-8") as log:
