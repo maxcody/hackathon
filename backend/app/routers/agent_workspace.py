@@ -1,6 +1,12 @@
 """Create, list, and chat with user-defined Linewatch agents."""
 
+import asyncio
+import json
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import suppress
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from openai import (
     APIConnectionError,
     APITimeoutError,
@@ -10,7 +16,7 @@ from openai import (
 )
 from starlette.concurrency import run_in_threadpool
 
-from app.codex_agent import CodexError, first_prompt, run_turn
+from app.codex_agent import CodexError, first_prompt, run_turn, stream_turn
 from app.config import settings
 from app.llm import LLMError, reply_to_agent
 from app.schemas.agent_workspace import (
@@ -54,6 +60,55 @@ def get_agent(agent_id: str) -> WorkspaceAgent:
 @router.post("/{agent_id}/chat")
 async def chat(agent_id: str, payload: ChatInput) -> WorkspaceAgent:
     """Get a model reply and save the completed conversation turn."""
+    return await _chat(agent_id, payload)
+
+
+@router.post("/{agent_id}/chat/stream")
+async def chat_stream(agent_id: str, payload: ChatInput) -> StreamingResponse:
+    """Send text deltas followed by the saved conversation as JSON lines."""
+
+    async def events() -> AsyncIterator[str]:
+        queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=64)
+
+        async def emit(text: str) -> None:
+            await queue.put({"type": "delta", "text": text})
+
+        async def finish() -> None:
+            try:
+                agent = await _chat(agent_id, payload, emit)
+                await queue.put({"type": "done", "agent": agent.model_dump()})
+            except HTTPException as error:
+                await queue.put({"type": "error", "detail": error.detail})
+            except Exception:
+                await queue.put({"type": "error", "detail": "The chat stream failed."})
+
+        task = asyncio.create_task(finish())
+        try:
+            while True:
+                event = await queue.get()
+                yield json.dumps(event) + "\n"
+                if event["type"] != "delta":
+                    break
+        finally:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+
+    return StreamingResponse(
+        events(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+async def _chat(
+    agent_id: str,
+    payload: ChatInput,
+    emit: Callable[[str], Awaitable[None]] | None = None,
+) -> WorkspaceAgent:
     agent, revision = await run_in_threadpool(_load, agent_id)
     thread = None
     if settings.chat_engine == "codex":
@@ -63,7 +118,10 @@ async def chat(agent_id: str, payload: ChatInput) -> WorkspaceAgent:
             history = [m.model_dump() for m in agent.messages]
             prompt = first_prompt(agent.instructions, history, payload.message)
         try:
-            reply, thread = await run_in_threadpool(run_turn, prompt, thread)
+            if emit:
+                reply, thread = await stream_turn(prompt, thread, emit)
+            else:
+                reply, thread = await run_in_threadpool(run_turn, prompt, thread)
         except CodexError as error:
             raise HTTPException(502, f"Codex could not reply: {error}") from error
         agent.messages.append(ChatMessage(role="user", content=payload.message))
@@ -74,7 +132,11 @@ async def chat(agent_id: str, payload: ChatInput) -> WorkspaceAgent:
             )
         agent.messages.append(ChatMessage(role="user", content=payload.message))
         try:
-            reply = await reply_to_agent(agent)
+            reply = (
+                await reply_to_agent(agent, emit)
+                if emit
+                else await reply_to_agent(agent)
+            )
         except APITimeoutError as error:
             raise HTTPException(504, "The model timed out. Try again.") from error
         except RateLimitError as error:

@@ -67,7 +67,35 @@ export function getWorkspaceAgent(id: string): Promise<WorkspaceAgent> {
   return request(`/api/agent-workspace/${encodeURIComponent(id)}`);
 }
 
-/** Send a message to the selected agent. */
-export function sendAgentMessage(id: string, message: string): Promise<WorkspaceAgent> {
-  return request(`/api/agent-workspace/${encodeURIComponent(id)}/chat`, json("POST", { message }));
+/** Send a message and receive text as the selected agent generates it. */
+export async function sendAgentMessage(
+  id: string,
+  message: string,
+  onDelta: (text: string) => void,
+): Promise<WorkspaceAgent> {
+  const response = await fetch(`/api/agent-workspace/${encodeURIComponent(id)}/chat/stream`, json("POST", { message }));
+  if (!response.ok || !response.body) throw new Error(`Chat request failed (${response.status}).`);
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error("The chat connection closed before the reply finished.");
+      buffer += value;
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line) continue;
+        const event = JSON.parse(line) as
+          | { type: "delta"; text: string }
+          | { type: "done"; agent: WorkspaceAgent }
+          | { type: "error"; detail: string };
+        if (event.type === "delta") onDelta(event.text);
+        if (event.type === "done") return event.agent;
+        if (event.type === "error") throw new Error(event.detail);
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
 }

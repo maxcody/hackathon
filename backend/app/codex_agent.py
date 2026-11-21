@@ -6,10 +6,14 @@ the MCP tools registered in ``~/.codex/config.toml`` (portal, notifications,
 email); this module lets those tools run without an approval prompt.
 """
 
+import asyncio
 import json
 import shutil
 import subprocess
+from collections.abc import Awaitable, Callable
+from contextlib import suppress
 
+from app.chat_format import MARKDOWN_GUIDANCE
 from app.config import settings
 from app.data import data_root
 
@@ -19,7 +23,9 @@ CHAT_GUIDANCE = (
     "Soony portal data mirror; use the portal tools for fresh data and cite file "
     "paths. Post confirmed problems with the notifications tools. Before sending "
     "any email, show the full draft (recipients, subject, body) and send only "
-    "after the user explicitly confirms in a later message."
+    "after the user explicitly confirms in a later message. You do have an email "
+    "address: the email tool sends from the team's own address (call sender_info); "
+    "'yourself' or 'the team' means that address."
 )
 TOOL_SERVERS = ("portal", "notifications", "email")
 
@@ -38,9 +44,16 @@ def build_command(executable: str, thread_id: str | None) -> list[str]:
     Returns:
         The command; the prompt is passed on standard input.
     """
+    options = ["--json", "--skip-git-repo-check", *_config_flags()]
+    if settings.codex_model:
+        options += ["-m", settings.codex_model]
+    if thread_id:
+        return [executable, "exec", "resume", *options, thread_id, "-"]
+    return [executable, "exec", *options, "-"]
+
+
+def _config_flags() -> list[str]:
     options = [
-        "--json",
-        "--skip-git-repo-check",
         "-c",
         f'model_reasoning_effort="{settings.codex_reasoning_effort}"',
         "-c",
@@ -48,11 +61,7 @@ def build_command(executable: str, thread_id: str | None) -> list[str]:
     ]
     for server in TOOL_SERVERS:
         options += ["-c", f'mcp_servers.{server}.default_tools_approval_mode="approve"']
-    if settings.codex_model:
-        options += ["-m", settings.codex_model]
-    if thread_id:
-        return [executable, "exec", "resume", *options, thread_id, "-"]
-    return [executable, "exec", *options, "-"]
+    return options
 
 
 def parse_events(output: str) -> tuple[str, str | None]:
@@ -90,7 +99,7 @@ def run_turn(prompt: str, thread_id: str | None) -> tuple[str, str]:
     """Send one message to Codex and wait for its answer (blocking).
 
     Args:
-        prompt: The message, including guidance on a session's first turn.
+        prompt: The message; the chat guidance is prepended on every turn.
         thread_id: Session to resume, or None to start one.
 
     Returns:
@@ -107,7 +116,7 @@ def run_turn(prompt: str, thread_id: str | None) -> tuple[str, str]:
     try:
         result = subprocess.run(
             build_command(executable, thread_id),
-            input=prompt.encode("utf-8"),
+            input=f"{CHAT_GUIDANCE}\n\n{MARKDOWN_GUIDANCE}\n\n{prompt}".encode(),
             capture_output=True,
             cwd=folder,
             timeout=settings.codex_timeout_seconds,
@@ -119,6 +128,131 @@ def run_turn(prompt: str, thread_id: str | None) -> tuple[str, str]:
     return reply, new_thread or thread_id or ""
 
 
+async def stream_turn(
+    prompt: str, thread_id: str | None, emit: Callable[[str], Awaitable[None]]
+) -> tuple[str, str]:
+    """Stream text from Codex App Server and return its completed reply and thread."""
+    executable = shutil.which("codex")
+    if executable is None:
+        raise CodexError("The Codex CLI is not installed on the backend machine.")
+    folder = data_root()
+    folder.mkdir(parents=True, exist_ok=True)
+    process = await asyncio.create_subprocess_exec(
+        executable,
+        "app-server",
+        *_config_flags(),
+        cwd=folder,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+        limit=4 * 1024 * 1024,
+    )
+    assert process.stdin is not None and process.stdout is not None
+    stdin, stdout = process.stdin, process.stdout
+
+    async def send(message: dict) -> None:
+        stdin.write((json.dumps(message) + "\n").encode())
+        await stdin.drain()
+
+    async def receive() -> dict:
+        while line := await stdout.readline():
+            try:
+                event = json.loads(line.decode("utf-8-sig"))
+            except ValueError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            if "method" in event and "id" in event:
+                await send(
+                    {
+                        "id": event["id"],
+                        "error": {
+                            "code": -32601,
+                            "message": "Unsupported client request",
+                        },
+                    }
+                )
+                continue
+            return event
+        raise CodexError("Codex closed the streaming connection.")
+
+    async def request(request_id: int, method: str, params: dict) -> dict:
+        await send({"id": request_id, "method": method, "params": params})
+        while True:
+            event = await receive()
+            if event.get("id") == request_id:
+                if "error" in event:
+                    raise CodexError(f"Codex did not accept {method}.")
+                return event["result"]
+
+    try:
+        async with asyncio.timeout(settings.codex_timeout_seconds):
+            await request(
+                1,
+                "initialize",
+                {"clientInfo": {"name": "linewatch", "version": "1.0.0"}},
+            )
+            await send({"method": "initialized"})
+            options = {
+                "cwd": str(folder),
+                "sandbox": "read-only",
+                "approvalPolicy": "never",
+            }
+            if settings.codex_model:
+                options["model"] = settings.codex_model
+            if thread_id:
+                options.update(threadId=thread_id, excludeTurns=True)
+            result = await request(
+                2, "thread/resume" if thread_id else "thread/start", options
+            )
+            active_id = result["thread"]["id"]
+            await send(
+                {
+                    "id": 3,
+                    "method": "turn/start",
+                    "params": {
+                        "threadId": active_id,
+                        "input": [
+                            {"type": "text", "text": f"{MARKDOWN_GUIDANCE}\n\n{prompt}"}
+                        ],
+                    },
+                }
+            )
+            reply = ""
+            streamed_items = set()
+            while True:
+                event = await receive()
+                if event.get("id") == 3 and "error" in event:
+                    raise CodexError("Codex could not start the chat turn.")
+                method, params = event.get("method"), event.get("params") or {}
+                if params.get("threadId") != active_id:
+                    continue
+                if method == "item/agentMessage/delta":
+                    streamed_items.add(params["itemId"])
+                    await emit(params["delta"])
+                elif (
+                    method == "item/completed"
+                    and params["item"]["type"] == "agentMessage"
+                ):
+                    item = params["item"]
+                    reply = item["text"]
+                    if item["id"] not in streamed_items:
+                        await emit(reply)
+                elif method == "turn/completed":
+                    if params["turn"]["status"] != "completed" or not reply.strip():
+                        raise CodexError("Codex did not finish the reply.")
+                    return reply, active_id
+    except TimeoutError as error:
+        raise CodexError("Codex took too long to answer.") from error
+    except (OSError, ValueError, KeyError) as error:
+        raise CodexError("The Codex streaming connection failed.") from error
+    finally:
+        if process.returncode is None:
+            with suppress(ProcessLookupError):
+                process.kill()
+        await process.wait()
+
+
 def first_prompt(instructions: str, history: list[dict], message: str) -> str:
     """Build the opening prompt for a new Codex session.
 
@@ -128,9 +262,9 @@ def first_prompt(instructions: str, history: list[dict], message: str) -> str:
         message: The user's new message.
 
     Returns:
-        Guidance, the agent's instructions, earlier turns and the message.
+        The agent's instructions, earlier turns and the message.
     """
-    parts = [CHAT_GUIDANCE]
+    parts = []
     if instructions:
         parts.append(f"Your role: {instructions}")
     if history:

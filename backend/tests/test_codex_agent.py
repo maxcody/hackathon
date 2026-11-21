@@ -69,3 +69,32 @@ def test_chat_resumes_the_agents_codex_session(
     ]
     assert calls[0][1] is None and "Be terse" in calls[0][0]  # new session
     assert calls[1] == ("More", "t-1")  # resumed, no repeated guidance
+
+
+def test_chat_stream_emits_deltas_and_saves_final_reply(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Send text before the final persisted turn, including the Codex thread ID."""
+    workspace = AgentWorkspace(tmp_path / "stream.sqlite3")
+    monkeypatch.setattr(agent_workspace, "workspace", workspace)
+    monkeypatch.setattr(agent_workspace.settings, "chat_engine", "codex")
+
+    async def fake_stream(prompt, thread, emit):
+        assert "Hi" in prompt and thread is None
+        await emit("**Hello")
+        await emit("**")
+        return "**Hello**", "thread-1"
+
+    monkeypatch.setattr(agent_workspace, "stream_turn", fake_stream)
+    with TestClient(app) as client:
+        prefix = "/api/agent-workspace"
+        agent_id = client.post(prefix, json={"name": "Streaming"}).json()["id"]
+        reply = client.post(f"{prefix}/{agent_id}/chat/stream", json={"message": "Hi"})
+        rows = [json.loads(line) for line in reply.text.splitlines()]
+    assert reply.status_code == 200
+    assert rows[:2] == [
+        {"type": "delta", "text": "**Hello"},
+        {"type": "delta", "text": "**"},
+    ]
+    assert rows[2]["agent"]["messages"][-1]["content"] == "**Hello**"
+    assert workspace.codex_thread(agent_id) == "thread-1"
