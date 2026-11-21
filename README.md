@@ -35,6 +35,24 @@ make run
 ```
 API docs: http://localhost:8000/docs
 
+## React dashboard
+The React dashboard calls the FastAPI routes directly and shows the returned response body, HTTP status, and request duration in the API explorer.
+
+For frontend development, start the backend first, then in another PowerShell window:
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+Open http://127.0.0.1:5173. Vite proxies API requests to `http://127.0.0.1:8000` by default. To use another backend, set `$env:VITE_API_PROXY_TARGET` before `npm run dev`.
+
+To build the frontend into the FastAPI static directory:
+```powershell
+cd frontend
+npm run build
+```
+Then open http://127.0.0.1:8000/ to use the dashboard from FastAPI. API documentation remains at http://127.0.0.1:8000/docs.
+
 ## Make targets (run from `backend/`)
 | Target | Description |
 | --- | --- |

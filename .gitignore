@@ -16,6 +16,8 @@ __pycache__/
 # Confidential hackathon data
 soony-data/
 soony-data.zip
+.local_data/
+backend/.local_data/
 
 # Caches and coverage
 .pytest_cache/
