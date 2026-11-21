@@ -15,5 +15,8 @@ FastAPI + Postgres backend in `backend/`. Async SQLAlchemy 2 (asyncpg), Alembic 
 - Config goes in `app/config.py` and `backend/.env.example`; never commit `.env`
 - Commit messages: plain imperative summary, no `chore:` prefix, no attribution lines
 
+## Code practices
+Follow @CODE_PRACTICES.md (DRY, Python docstrings, TSDoc for TypeScript).
+
 ## Coding guidelines
 Provided by the `andrej-karpathy-skills` plugin (enabled in `.claude/settings.json`).
