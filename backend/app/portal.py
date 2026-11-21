@@ -31,8 +31,8 @@ class SyncResult:
 
 def make_client() -> httpx.AsyncClient:
     """Build an authenticated client from ``PORTAL_URL`` and ``PORTAL_TOKEN``."""
-    if not settings.portal_token:
-        raise PortalError("PORTAL_TOKEN is not set (copy it from the portal Settings)")
+    if not (settings.portal_url and settings.portal_token):
+        raise PortalError("PORTAL_URL and PORTAL_TOKEN must be set in backend/.env")
     return httpx.AsyncClient(
         base_url=settings.portal_url,
         headers={"Authorization": f"Bearer {settings.portal_token}"},
