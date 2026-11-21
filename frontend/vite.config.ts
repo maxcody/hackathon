@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       strictPort: true,
       proxy: {
-        "^/(status|findings|files|products|components|bom-changes|sync|pipeline|master|health|openapi.json)": {
+        "^/(health|openapi\.json|products|components|bom-lines|bom-changes|sheet-rows|notifications|import)(/|$)": {
           target: env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8000",
           changeOrigin: true,
         },

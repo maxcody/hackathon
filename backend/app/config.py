@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     )
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
     # Folder holding the confidential Soony data (contains soony/ and suppliers/)
-    data_dir: str = "~/Desktop/soony-data"
+    data_dir: str = "soony-data"
     # Soony customer portal API; the team token is on the portal Settings page
     portal_url: str = (
         "https://start-hack-portal-cxh3crbdaef2f8gt.westeurope-01.azurewebsites.net"

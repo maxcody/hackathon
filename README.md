@@ -34,6 +34,8 @@ make run
 ```
 API docs: http://localhost:8000/docs
 
+The default `DATA_DIR=soony-data` is resolved relative to `backend/`. If the data folder is elsewhere, set `DATA_DIR` in `backend/.env` to the folder containing `soony/` and `suppliers/`.
+
 ## React dashboard
 The React dashboard calls the FastAPI routes directly and shows the returned response body, HTTP status, and request duration in the API explorer.
 

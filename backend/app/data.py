@@ -14,8 +14,11 @@ from app.config import settings
 
 
 def data_root() -> Path:
-    """Return the configured data folder with ``~`` expanded."""
-    return Path(settings.data_dir).expanduser()
+    """Return the configured data folder with relative paths based at backend/."""
+    root = Path(settings.data_dir).expanduser()
+    if not root.is_absolute():
+        root = Path(__file__).resolve().parents[1] / root
+    return root
 
 
 def read_csv(rel: str) -> list[dict[str, str]]:
