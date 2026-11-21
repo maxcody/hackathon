@@ -67,9 +67,11 @@ def blocked_recipients(recipients: list[str], settings: EmailSettings) -> list[s
 server = MCPServer(
     "email",
     instructions=(
-        "Send plain-text email over SMTP. Only allowed recipient domains are "
-        "accepted. Write to suppliers in their preferred language and never "
-        "change payment details or bank data by email."
+        "Send plain-text email over SMTP from the team's own address "
+        f"({EmailSettings().smtp_user or 'not configured'}); 'yourself' or 'us' "
+        "means that address, which may always receive mail. Other recipients must "
+        "be in the allowed domains. Write to suppliers in their preferred language "
+        "and never change payment details or bank data by email."
     ),
 )
 
@@ -99,7 +101,10 @@ def send_email(
     cc: list[str] | None = None,
     reply_to: str | None = None,
 ) -> str:
-    """Send a plain-text email and return its Message-ID.
+    """Send a plain-text email from the team's own address and return its Message-ID.
+
+    The sender address (see ``sender_info``) may always be a recipient, e.g. when
+    the user asks you to email yourself or the team.
 
     Args:
         to: Recipient addresses.
