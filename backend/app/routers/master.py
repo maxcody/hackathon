@@ -20,7 +20,9 @@ async def run_import(session: SessionDep) -> ImportSummary:
     try:
         return await import_master(session)
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=409, detail="run /sync first") from exc
+        raise HTTPException(
+            status_code=409, detail=f"{exc} (run /sync first?)"
+        ) from exc
 
 
 @router.get("/products", response_model=list[ProductRead])

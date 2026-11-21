@@ -2,15 +2,18 @@
 
 The files stay the source of truth: a re-import overwrites rows with what the
 latest sync downloaded, so a new portal drop is one ``POST /master/import`` away.
+Files are recognised by their header columns, not their names or folders, since
+the portal renames and re-dates files without notice.
 """
 
+import csv
 from dataclasses import dataclass, field
 from datetime import date
 
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.data import read_csv
+from app.data import data_root
 from app.models import BomChange, BomLine, Component, Product
 
 COMPONENT_FIELDS = {"drawing_rev", "critical", "abc_class"}
@@ -25,6 +28,39 @@ class ImportSummary:
     bom_lines: int = 0
     bom_changes: int = 0
     skipped_updates: list[str] = field(default_factory=list)
+
+
+# Columns that identify each kind of file (a file matches if it has all of them)
+SIGNATURES = {
+    "products": {"product_id", "day_one_qty"},
+    "components": {"component_id", "drawing_rev", "critical"},
+    "bom": {"parent_id", "child_id", "qty_per", "valid_to"},
+    "bom_changes": {"change_id", "parent_id", "child_id", "use_up_old_rev"},
+    "component_updates": {"component_id", "field", "new"},
+}
+REQUIRED = ("products", "components", "bom")  # changes and updates may be absent
+
+
+def _scan() -> dict[str, list[dict[str, str]]]:
+    """Read every CSV under ``soony/`` and sort its rows by file kind.
+
+    Files are read in path order, so dated names apply oldest first. CSVs that
+    match no kind (purchase orders, stock, ...) are ignored.
+    """
+    found: dict[str, list[dict[str, str]]] = {kind: [] for kind in SIGNATURES}
+    for path in sorted((data_root() / "soony").rglob("*.csv")):
+        try:
+            with open(path, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                columns = set(reader.fieldnames or [])
+                kind = next(
+                    (k for k, need in SIGNATURES.items() if need <= columns), None
+                )
+                if kind:
+                    found[kind].extend(reader)
+        except UnicodeDecodeError:
+            continue  # not a UTF-8 CSV we know how to read
+    return found
 
 
 def _flag(value: str) -> bool:
@@ -112,17 +148,25 @@ async def import_master(session: AsyncSession) -> ImportSummary:
         Row counts and any component updates that named an unknown field or part.
 
     Raises:
-        FileNotFoundError: If the data folder has not been synced yet.
+        FileNotFoundError: If no file for products, components or BOM is found.
     """
-    products = [_product(r) for r in read_csv("master/products.csv")]
-    components = {
-        c.component_id: c for c in map(_component, read_csv("master/components.csv"))
-    }
-    skipped = _apply_updates(
-        components, read_csv("master/components_update_2026-11-21.csv")
+    rows = _scan()
+    missing = [kind for kind in REQUIRED if not rows[kind]]
+    if missing:
+        raise FileNotFoundError(f"no CSV found for: {', '.join(missing)}")
+    # A later file may restate a row; the last one wins
+    products = list({p.product_id: p for p in map(_product, rows["products"])}.values())
+    components = {c.component_id: c for c in map(_component, rows["components"])}
+    skipped = _apply_updates(components, rows["component_updates"])
+    lines = list(
+        {
+            (b.parent_id, b.child_id, b.valid_from): b
+            for b in map(_bom_line, rows["bom"])
+        }.values()
     )
-    lines = [_bom_line(r) for r in read_csv("master/bom.csv")]
-    changes = [_bom_change(r) for r in read_csv("master/bom_delta_2026-11-21.csv")]
+    changes = list(
+        {c.change_id: c for c in map(_bom_change, rows["bom_changes"])}.values()
+    )
 
     # Children first so foreign keys hold; parents are re-created before children
     for table in (BomChange, BomLine, Component, Product):
