@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { createWorkspaceAgent, getWorkspaceAgent, listWorkspaceAgents, sendAgentMessage } from "./api";
 import type { AgentSummary, WorkspaceAgent } from "./types";
-import { EmailDraftCard, parseSendCommand, sameDraft, sendCommand, splitDrafts } from "./EmailDraft";
+import { EmailDraftCard, parseSendCommand, sendCommand, splitDrafts } from "./EmailDraft";
 import type { Draft } from "./EmailDraft";
 import "./agents.css";
 
@@ -165,14 +165,14 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
             <article key={index} className={`agent-message agent-message-${entry.role}`}>
               {worked?.index === index && <p className="agent-worked">Worked for {worked.seconds}s</p>}
               {entry.role === "assistant"
-                ? <AgentReply text={entry.content} onSend={index === agent.messages.length - 1 && !pending ? (draft) => void submit(sendCommand(draft)) : undefined} sent={agent.messages.slice(index + 1).map((later) => later.role === "user" ? parseSendCommand(later.content) : null).filter((draft): draft is Draft => draft !== null)} />
+                ? <AgentReply text={entry.content} onSend={index === agent.messages.length - 1 && !pending ? (draft) => void submit(sendCommand(draft)) : undefined} sent={sendState(agent.messages, index, pending)} />
                 : <UserMessage text={entry.content} />}
             </article>
           ))}
           {pending && <>
             <article className="agent-message agent-message-user"><UserMessage text={pending} /></article>
             <p className="agent-reply-status" role="status">Working… {elapsed}s</p>
-            {partialReply && <article className="agent-message agent-message-assistant"><AgentReply text={partialReply} sent={[]} /></article>}
+            {partialReply && <article className="agent-message agent-message-assistant"><AgentReply text={partialReply} sent={null} /></article>}
           </>}
           </div>
         </div>
@@ -191,13 +191,24 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
   );
 }
 
+/** What happened to the draft in message `index`: the version sent and its status, or null if not sent. */
+function sendState(messages: WorkspaceAgent["messages"], index: number, pending: string | null): { draft: Draft; label: string } | null {
+  const next = messages[index + 1];
+  const command = next?.role === "user" ? parseSendCommand(next.content) : index === messages.length - 1 && pending ? parseSendCommand(pending) : null;
+  if (!command) return null;
+  const answer = next?.role === "user" ? messages[index + 2] : undefined;
+  if (!answer) return { draft: command, label: "Sending…" };
+  return { draft: command, label: /not (been )?sent|failed|error|could ?n.?t|unable|wasn.?t sent/i.test(answer.content) ? "Not sent" : "Sent" };
+}
+
 /** Render an agent reply: Markdown, with email drafts shown as mail previews. */
-function AgentReply({ text, onSend, sent }: { text: string; onSend?: (draft: Draft) => void; sent: Draft[] }) {
+function AgentReply({ text, onSend, sent }: { text: string; onSend?: (draft: Draft) => void; sent: { draft: Draft; label: string } | null }) {
   return <>{splitDrafts(text).map((segment, index) => {
     if (segment.kind === "text") return <AgentMarkdown key={index} text={segment.text} />;
     if (segment.kind === "drafting") return <p key={index} className="agent-reply-status">Writing the email draft…</p>;
-    const wasSent = sent.length > 0;
-    return <EmailDraftCard key={index} draft={segment.draft} onSend={wasSent ? undefined : onSend} status={wasSent ? (sent.some((draft) => sameDraft(draft, segment.draft)) ? "Send requested" : "Send requested (edited)") : undefined} />;
+    return sent
+      ? <EmailDraftCard key={`sent-${index}`} draft={sent.draft} status={sent.label} />
+      : <EmailDraftCard key={index} draft={segment.draft} onSend={onSend} />;
   })}</>;
 }
 
@@ -205,7 +216,7 @@ function AgentReply({ text, onSend, sent }: { text: string; onSend?: (draft: Dra
 function UserMessage({ text }: { text: string }) {
   const draft = parseSendCommand(text);
   if (!draft) return <p>{text}</p>;
-  return <p className="mail-send-line"><span aria-hidden="true">✉</span> Send “{draft.subject}” to {draft.to.join(", ")}</p>;
+  return <p className="mail-send-line">Send “{draft.subject}”</p>;
 }
 
 /** Render Markdown in both saved messages and streaming replies. */

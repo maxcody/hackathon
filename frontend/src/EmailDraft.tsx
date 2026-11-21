@@ -107,22 +107,47 @@ export function EmailDraftCard({ draft, onSend, status }: { draft: Draft; onSend
   const [cc, setCc] = useState(draft.cc.join(", "));
   const [subject, setSubject] = useState(draft.subject);
   const [body, setBody] = useState(draft.body);
+  const [showCc, setShowCc] = useState(draft.cc.length > 0);
   const editable = !!onSend;
   const edited = { to: addresses(to), cc: addresses(cc), subject, body };
+  const initial = (edited.to[0] ?? draft.to[0] ?? "?").slice(0, 1).toUpperCase();
 
   return (
-    <div className="mail-draft" role="group" aria-label={`Email draft: ${draft.subject}`}>
-      <div className="mail-draft-bar"><span className="mail-draft-icon" aria-hidden="true">✉</span><strong>{editable ? "New message" : "Email"}</strong>{status && <span className="mail-draft-status">{status}</span>}</div>
-      <label className="mail-draft-field"><span>To</span>{editable ? <input value={to} onChange={(event) => setTo(event.target.value)} /> : <em>{draft.to.join(", ")}</em>}</label>
-      {(editable || draft.cc.length > 0) && <label className="mail-draft-field"><span>Cc</span>{editable ? <input value={cc} onChange={(event) => setCc(event.target.value)} /> : <em>{draft.cc.join(", ")}</em>}</label>}
-      <label className="mail-draft-field"><span>Subject</span>{editable ? <input value={subject} onChange={(event) => setSubject(event.target.value)} /> : <em>{draft.subject}</em>}</label>
+    <div className={`mail${editable ? " mail-editable" : ""}`} role="group" aria-label={`Email: ${subject || draft.subject}`}>
+      <div className="mail-head">
+        <span className="mail-avatar" aria-hidden="true">{initial}</span>
+        <div className="mail-meta">
+          {editable
+            ? <input className="mail-subject" aria-label="Subject" placeholder="Subject" value={subject} onChange={(event) => setSubject(event.target.value)} />
+            : <h4 className="mail-subject">{draft.subject || "(no subject)"}</h4>}
+          <div className="mail-line">
+            <span className="mail-label">To</span>
+            {editable
+              ? <input aria-label="To" value={to} onChange={(event) => setTo(event.target.value)} />
+              : <span className="mail-chips">{draft.to.map((address) => <span key={address} className="mail-chip">{address}</span>)}</span>}
+            {editable && !showCc && <button type="button" className="mail-cc-toggle" onClick={() => setShowCc(true)}>Cc</button>}
+          </div>
+          {(showCc || (!editable && draft.cc.length > 0)) && (
+            <div className="mail-line">
+              <span className="mail-label">Cc</span>
+              {editable
+                ? <input aria-label="Cc" value={cc} onChange={(event) => setCc(event.target.value)} />
+                : <span className="mail-chips">{draft.cc.map((address) => <span key={address} className="mail-chip">{address}</span>)}</span>}
+            </div>
+          )}
+        </div>
+        {status && <span className="mail-status">{status}</span>}
+      </div>
       {editable
-        ? <textarea className="mail-draft-body" aria-label="Message" rows={Math.min(14, Math.max(4, body.split("\n").length + 1))} value={body} onChange={(event) => setBody(event.target.value)} />
-        : <div className="mail-draft-body">{draft.body}</div>}
+        ? <textarea className="mail-body" aria-label="Message" rows={Math.min(16, Math.max(4, body.split("\n").length + 1))} value={body} onChange={(event) => setBody(event.target.value)} />
+        : <div className="mail-body">{draft.body}</div>}
       {editable && (
-        <div className="mail-draft-actions">
-          <small>Only sent when you click Send.</small>
-          <button type="button" className="button button-dark" disabled={!edited.to.length || !subject.trim()} onClick={() => onSend(edited)}>Send ➤</button>
+        <div className="mail-foot">
+          <span className="mail-hint">Draft · sent only when you click Send</span>
+          <button type="button" className="mail-send" disabled={!edited.to.length || !subject.trim() || !body.trim()} onClick={() => onSend(edited)}>
+            Send
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 12 20 4l-6.5 16-2.5-6.5L4 12Z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" /></svg>
+          </button>
         </div>
       )}
     </div>
