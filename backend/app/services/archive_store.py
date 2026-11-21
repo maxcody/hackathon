@@ -32,6 +32,8 @@ class ArchiveStore:
         self.archive_path = directory / "latest.zip"
         self.manifest_path = directory / "manifest.json"
         self.events_path = directory / "events.json"
+        self._documents_cache: list[Document] | None = None
+        self._documents_mtime_ns: int | None = None
         directory.mkdir(parents=True, exist_ok=True)
 
     def import_archive(self, content: bytes) -> dict[str, Any]:
@@ -60,6 +62,8 @@ class ArchiveStore:
                 },
             )
         self.archive_path.write_bytes(content)
+        self._documents_cache = documents
+        self._documents_mtime_ns = self.archive_path.stat().st_mtime_ns
         self.manifest_path.write_text(json.dumps(current, indent=2), encoding="utf-8")
         self.events_path.write_text(
             json.dumps(events[:100], indent=2), encoding="utf-8"
@@ -132,11 +136,15 @@ class ArchiveStore:
         """Read and parse the most recently imported archive, if present."""
         if not self.archive_path.exists():
             return []
-        return parse_archive(self.archive_path.read_bytes())
+        modified = self.archive_path.stat().st_mtime_ns
+        if self._documents_cache is None or self._documents_mtime_ns != modified:
+            self._documents_cache = parse_archive(self.archive_path.read_bytes())
+            self._documents_mtime_ns = modified
+        return self._documents_cache
 
-    def summary(self) -> dict[str, Any]:
+    def summary(self, documents: list[Document] | None = None) -> dict[str, Any]:
         """Return import freshness, file inventory, risks, and recent changes."""
-        documents = self.documents()
+        documents = documents if documents is not None else self.documents()
         events = self._read_json(self.events_path, [])
         bank_change_risks = [
             {
