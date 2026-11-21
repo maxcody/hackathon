@@ -1,0 +1,40 @@
+# Secrets
+.env
+.env.*
+!.env.example
+.local_data/
+*.pem
+*.key
+credentials.json
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Caches and coverage
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+
+# Local tooling
+.vs/
+.claude/*
+!.claude/settings.json
+
+# Build
+dist/
+build/
+
+backend/soony-data/
