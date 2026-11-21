@@ -15,6 +15,16 @@ function localTime(value: string | null | undefined): string {
   return Number.isNaN(date.valueOf()) ? value : date.toLocaleString();
 }
 
+const LAUNCH = new Date("2026-11-22T20:00:00+01:00");
+
+/** Time left until launch, e.g. "14 h 20 min left". */
+function timeToLaunch(): string {
+  const minutes = Math.round((LAUNCH.getTime() - Date.now()) / 60000);
+  if (minutes <= 0) return "launched";
+  const hours = Math.floor(minutes / 60);
+  return hours >= 48 ? `${Math.floor(hours / 24)} days left` : `${hours} h ${minutes % 60} min left`;
+}
+
 /** Normalize a notification's free-text severity to a known level. */
 function severityOf(notification: Notification): Severity {
   const value = String(notification.data.severity ?? "").toLowerCase();
@@ -58,27 +68,22 @@ export function App() {
 /** Keep workspace navigation visible across tabs. */
 function Sidebar({ location, openCount }: { location: string; openCount: number | null }) {
   const links = [
-    ["#overview", "grid", "Overview"],
-    ["#notifications", "alert", "Notifications"],
-    ["#agents", "spark", "Agents"],
+    ["#overview", "Overview"],
+    ["#notifications", "Issues"],
+    ["#agents", "Agents"],
   ];
   return (
     <aside className="sidebar">
-      <a className="brand" href="#overview" aria-label="Linewatch home"><span className="brand-mark">L</span><span>linewatch<span className="brand-period">.</span></span></a>
-      <div className="side-caption">YOUR WORKSPACE</div>
-      <div className="workspace-switch"><span className="workspace-icon">S</span><span><strong>Soony Interactive</strong><small>Grand Heist 6</small></span><span className="down-caret">⌄</span></div>
-      <div className="side-caption nav-caption">LAUNCH CONTROL</div>
+      <a className="brand" href="#overview" aria-label="Linewatch home">Linewatch</a>
+      <p className="side-project">Soony · Grand Heist 6</p>
       <nav className="main-nav" aria-label="Main navigation">
-        {links.map(([href, icon, label]) => (
-          <a key={href} className={`nav-link${location === href ? " selected" : ""}`} href={href} aria-label={label} aria-current={location === href ? (href === "#agents" ? "page" : "location") : undefined}>
-            <Icon name={icon} /> {label}
-            {href === "#notifications" && openCount !== null && <span className="nav-count">{openCount}</span>}
+        {links.map(([href, label]) => (
+          <a key={href} className={`nav-link${location === href ? " selected" : ""}`} href={href} aria-current={location === href ? "page" : undefined}>
+            {label}
+            {href === "#notifications" && !!openCount && <span className="nav-count">{openCount}</span>}
           </a>
         ))}
       </nav>
-      <div className="sidebar-bottom">
-        <div className="profile-row"><div className="profile-avatar">S</div><div><strong>Launch team</strong><small>Soony workspace</small></div><span className="profile-menu">•••</span></div>
-      </div>
     </aside>
   );
 }
@@ -154,33 +159,32 @@ function Dashboard({ notifications, setNotifications }: { notifications: Notific
     }
   }
 
-  if (loading) return <div className="loading-screen"><div className="loading-mark">L</div><p>Getting the launch picture…</p></div>;
-  if (notifications === null) return <div className="load-error"><div className="brand-mark">L</div><h1>We can’t reach Linewatch yet.</h1><p>{error ?? "Start the backend, then reload this page."}</p><button className="button button-primary" onClick={() => { setLoading(true); setError(null); refresh().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load notifications.")).finally(() => setLoading(false)); }}>Try again</button></div>;
+  if (loading) return <div className="loading-screen"><p>Loading…</p></div>;
+  if (notifications === null) return <div className="load-error"><h1>The backend is not reachable.</h1><p>{error ?? "Start the backend, then reload this page."}</p><button className="button button-primary" onClick={() => { setLoading(true); setError(null); refresh().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load notifications.")).finally(() => setLoading(false)); }}>Try again</button></div>;
 
   const openTotal = counts.critical + counts.warning + counts.info;
 
   return (
     <main id="overview" className="main-content">
-      <header className="topbar"><div className="mobile-brand"><span className="brand-mark">L</span> linewatch<span className="brand-period">.</span></div><div className="breadcrumbs">Workspaces <span>/</span> Soony <span>/</span> <strong>Launch overview</strong></div><div className="topbar-right"><span className="live-badge"><i /> LIVE VIEW</span><NotificationBell notifications={notifications} /><span className="top-divider" /><span className="top-avatar">S</span></div></header>
+      <header className="page-head">
+        <div>
+          <h1>Overview</h1>
+          <p className="launch-line">Launch Sun 22 Nov, 20:00 at DC Hamburg · <strong>{timeToLaunch()}</strong></p>
+        </div>
+        <div className="page-actions">
+          <button className="button button-outline" onClick={handleSync} disabled={busy} title="Download new portal files and reload the database">{busy ? "Syncing…" : "Sync portal data"}</button>
+          <NotificationBell notifications={notifications} />
+        </div>
+      </header>
       <div className="content-wrap">
-        <section className="hero-row">
-          <div><div className="eyebrow"><span className="eyebrow-mark" /> RELEASE OPERATIONS <span className="eyebrow-slash">/</span> 01</div><h1>Keep the line <em>running.</em></h1><p className="hero-subtitle">What the agents found in the data, and what needs a person right now.</p></div>
-          <a className="button button-dark" href="#agents"><Icon name="spark" /> Open agents</a>
-        </section>
-
-        <section className="deadline-banner" aria-label="Launch deadline"><div className="deadline-symbol"><Icon name="clock" /></div><div className="deadline-copy"><span className="banner-overline">FIXED LAUNCH DEADLINE <span className="banner-dot" /> NON-NEGOTIABLE</span><strong>Grand Heist 6 launches <b>Sunday, 22 November at 20:00</b></strong><small>Every copy must be packed and ready at the Hamburg distribution center.</small></div><div className="deadline-location"><span>FULFILMENT SITE</span><strong>Hamburg <small>· DC-HAM</small></strong><span className="location-note">One site · no alternate</span></div></section>
-
-        <section className="data-toolbar" aria-label="Portal sync"><div className="data-summary"><div className="data-icon ready"><Icon name="file" /></div><div><div className="data-title-row"><strong>Soony portal data</strong></div><p>Download new or changed portal files, then reload products, components, BOM and sheet rows into the database.</p></div></div><div className="toolbar-actions"><button className="button button-sync" onClick={handleSync} disabled={busy}><Icon name="refresh" /> {busy ? "Syncing…" : "Sync and import"}</button></div></section>
 
         {error && <div className="message message-error" role="alert"><Icon name="alert" /><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss">×</button></div>}
         {notice && <div className="message message-success" role="status"><Icon name="check" /><span>{notice}</span><button onClick={() => setNotice(null)} aria-label="Dismiss">×</button></div>}
 
-        <section className="section-block priority-section" id="notifications" aria-labelledby="notifications-heading"><div className="section-heading"><div><span className="section-number">01</span><div><h2 id="notifications-heading">What needs a human now</h2><p>Mismatches the agents found between the ERP and the paper or supplier side. Check the sources before acting.</p></div></div><span className="priority-total">{openTotal} <small>open</small></span></div>
+        <section className="section-block priority-section" id="notifications" aria-labelledby="notifications-heading"><div className="list-head"><h2 id="notifications-heading">Open issues <span>{openTotal}</span></h2><p>Where the ERP disagrees with paperwork or suppliers, as reported by the agents.</p></div>
           <div className="priority-toolbar"><div className="filter-tabs" role="group" aria-label="Filter notifications">{(["all", ...severityOrder] as const).map((item) => <button key={item} className={`filter-tab ${filter === item ? "filter-active" : ""}`} onClick={() => setFilter(item)}>{item === "all" ? "All" : item}<span>{item === "all" ? openTotal : counts[item]}</span></button>)}<button className={`filter-tab ${showResolved ? "filter-active" : ""}`} onClick={() => setShowResolved((value) => !value)}>Resolved</button></div><label className="search-field"><Icon name="search" /><input aria-label="Search notifications" placeholder="Search a part, file or issue" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
-          <div className="risk-list">{visible.length ? visible.map((n) => <NotificationCard key={n.id} notification={n} onStatus={setStatus} />) : <div className="empty-state"><div className="empty-symbol"><Icon name="check" /></div><strong>{notifications.length ? "No matching notifications" : "No notifications yet"}</strong><p>{notifications.length ? "Try another filter or search term." : "Ask an agent in the Agents tab to check the data; its findings appear here."}</p></div>}</div>
+          <div className="risk-list">{visible.length ? visible.map((n) => <NotificationCard key={n.id} notification={n} onStatus={setStatus} />) : <p className="list-empty">{notifications.length ? "Nothing matches this filter." : <>No issues reported yet. Ask an agent in <a href="#agents">Agents</a> to check the data.</>}</p>}</div>
         </section>
-
-        <footer className="page-footer"><span><b>LINEWATCH</b> <i>·</i> SOONY LAUNCH CONTROL</span><span>Evidence first. Human decisions always.</span></footer>
       </div>
     </main>
   );
