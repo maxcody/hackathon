@@ -24,6 +24,8 @@ SIGNATURES = {
     "shifts": {"Day", "Shift", "Hours", "Lines"},
     "shipments": {"Shipment", "Container/AWB", "Supplier", "POs", "ETD", "ETA"},
     "price_list": {"Material", "Current price", "New price", "Valid from"},
+    "stock": {"Site", "Material", "Qty", "Receipts today", "Used today"},
+    "packed": {"Site", "Material", "Qty", "Packed today"},
     "notes": {"Note"},
 }
 # A data row must have these, or it is a footnote or stray line
@@ -34,6 +36,8 @@ REQUIRED = {
     "shifts": {"Day", "Hours"},
     "shipments": {"Shipment"},
     "price_list": {"Material", "Current price"},
+    "stock": {"Material", "Qty"},
+    "packed": {"Material", "Qty"},
     "notes": {"Note"},
 }
 # Counts may be written German-style ("640.000" is 640,000); other numbers are plain
@@ -43,6 +47,10 @@ COUNTS = {
     "Packed",
     "Still to pack",
     "Rate per hour",
+    "Qty",
+    "Receipts today",
+    "Used today",
+    "Packed today",
 }
 NUMBERS = COUNTS | {
     "Hours needed", "Hours available", "Per Standard", "Per Collector's",

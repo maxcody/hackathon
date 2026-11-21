@@ -14,7 +14,7 @@ Unknown id is 404. A duplicate key, a missing reference, or deleting a row that 
 | `/components` | `components` | `component_id` | Parts, with current drawing revision |
 | `/bom-lines` | `bom_lines` | `id` | Which parts go into which product, and how many |
 | `/bom-changes` | `bom_changes` | `change_id` | Engineering changes, including `use_up_old_rev` |
-| `/sheet-rows` | `sheet_rows` | `id` | Excel rows (`kind`: editions, parts, inbound, shifts, shipments, price_list, notes) with a `data` JSON keyed by the sheet's own column labels |
+| `/sheet-rows` | `sheet_rows` | `id` | Excel rows (`kind`: editions, parts, inbound, shifts, shipments, price_list, stock, packed, notes) with a `data` JSON keyed by the sheet's own column labels |
 | `/notifications` | `notifications` | `id` | What the frontend shows as alerts |
 | `/health` | - | - | App and database check |
 
