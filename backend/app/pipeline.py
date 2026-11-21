@@ -15,8 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data import data_root
 from app.llm import read_delivery_note
-from app.models import Finding, SourceFile
-from app.models.finding import FindingStatus, Severity
+from app.models import Notification, SourceFile
+from app.models.notification import NotificationStatus
 from app.models.source_file import FileStatus
 from app.portal import list_files, make_client, sync
 from app.stocktruth import Mismatch, find_mismatches
@@ -24,7 +24,6 @@ from app.stocktruth import Mismatch, find_mismatches
 PARSER_VERSION = 2  # 2: scans are read as rows ("lines"), quantities as printed text
 SCAN_PATTERN = re.compile(r"^soony/receiving/DC-HAM/.+\.(jpe?g|png)$", re.I)
 STOCK_MISMATCH = "stock_mismatch"
-CRITICAL_RATIO = 0.10  # a difference above 10% of the booked quantity is critical
 CONCURRENT_READS = 2  # free-tier model keys rate-limit quickly
 
 
@@ -36,7 +35,7 @@ class RunSummary:
     files_tracked: int
     scans_read: int
     scans_failed: int
-    findings_open: int
+    notifications_open: int
 
 
 def _utcnow() -> datetime:
@@ -111,27 +110,29 @@ def _fingerprint(m: Mismatch) -> str:
     return hashlib.sha1(key.encode()).hexdigest()
 
 
-def _describe(m: Mismatch) -> tuple[str, str, str]:
-    """Return (severity, title, detail) for a mismatch."""
-    ratio = abs(m.delta) / max(m.booked, 1)
-    severity = Severity.CRITICAL if ratio >= CRITICAL_RATIO else Severity.WARNING
-    title = (
+def _refs(m: Mismatch) -> dict:
+    """Return where each side of a mismatch came from, for the UI to link to."""
+    return {
+        "erp": {
+            "ref": m.gr_number,
+            "po_number": m.po_number,
+            "supplier_id": m.supplier_id,
+            "in_stock": m.in_stock,
+        },
+        "customer": {"ref": m.path, "handwritten_correction": m.correction},
+    }
+
+
+def _describe(m: Mismatch) -> str:
+    """Return the short headline for a mismatch."""
+    return (
         f"{m.delivery_note}: ERP booked {m.booked:,} but the delivery note "
         f"says {m.actual:,} ({m.part})"
     )
-    detail = (
-        f"Goods receipt {m.gr_number} (PO {m.po_number}, supplier {m.supplier_id}) "
-        f"booked {m.booked:,}; the scan shows {m.actual:,}"
-    )
-    if m.correction:
-        detail += f" (handwritten correction {m.correction:,})"
-    direction = "overstated" if m.delta < 0 else "understated"
-    detail += f". ERP stock is {direction} by {abs(m.delta):,}."
-    return severity, title, detail
 
 
 async def _reconcile(session: AsyncSession) -> int:
-    """Turn scan-versus-receipt mismatches into findings; return the open count."""
+    """Turn scan-versus-receipt mismatches into notifications; return the open count."""
     scans = {
         f.path: f
         for f in await session.scalars(
@@ -140,36 +141,53 @@ async def _reconcile(session: AsyncSession) -> int:
     }
     mismatches = find_mismatches({p: f.extracted for p, f in scans.items()})
     existing = {
-        f.fingerprint: f
-        for f in await session.scalars(
-            select(Finding).where(Finding.kind == STOCK_MISMATCH)
+        n.data["fingerprint"]: n
+        for n in await session.scalars(
+            select(Notification).where(
+                Notification.data["kind"].astext == STOCK_MISMATCH
+            )
         )
     }
     current = set()
     for m in mismatches:
         fingerprint = _fingerprint(m)
         current.add(fingerprint)
-        severity, title, detail = _describe(m)
-        finding = existing.get(fingerprint)
-        if finding is None:
-            finding = Finding(fingerprint=fingerprint, kind=STOCK_MISMATCH)
-            session.add(finding)
-        elif finding.status == FindingStatus.RESOLVED:
-            finding.status = FindingStatus.OPEN  # the problem is back
-        finding.severity, finding.title, finding.detail = severity, title, detail
-        finding.part, finding.source_file_id = m.part, scans[m.path].id
-    for fingerprint, finding in existing.items():
-        if fingerprint not in current and finding.status == FindingStatus.OPEN:
-            finding.status = FindingStatus.RESOLVED
+        title = _describe(m)
+        note = existing.get(fingerprint)
+        if note is None:
+            note = existing[fingerprint] = Notification(attr="quantity", data={})
+            session.add(note)
+        status = note.data.get("status", NotificationStatus.OPEN)
+        if status == NotificationStatus.RESOLVED:
+            status = NotificationStatus.OPEN  # the problem is back
+        note.erp_val, note.customer_val = str(m.booked), str(m.actual)
+        # A new dict, so the JSON column notices the change
+        note.data = {
+            "fingerprint": fingerprint,
+            "kind": STOCK_MISMATCH,
+            "status": status,
+            "title": title,
+            "subject": m.part,
+            "refs": _refs(m),
+        }
+        note.seen_at = _utcnow()
+    for fingerprint, note in existing.items():
+        if (
+            fingerprint not in current
+            and note.data["status"] == NotificationStatus.OPEN
+        ):
+            note.data = {**note.data, "status": NotificationStatus.RESOLVED}
     await session.flush()
-    open_count = await session.scalars(
-        select(Finding).where(Finding.status == FindingStatus.OPEN)
+    open_notes = await session.scalars(
+        select(Notification).where(
+            Notification.data["status"].astext == NotificationStatus.OPEN
+        )
     )
-    return len(open_count.all())
+    return len(open_notes.all())
 
 
 async def run(session: AsyncSession) -> RunSummary:
-    """Sync the portal, read new or changed scans and refresh the findings.
+    """Sync the portal, read new or changed scans and refresh the notifications.
 
     Raises:
         PortalError: If the portal rejects the request.
@@ -179,12 +197,12 @@ async def run(session: AsyncSession) -> RunSummary:
         listing = await list_files(client)
     pending = await _track(session, listing)
     read, failed = await _extract(pending)
-    open_findings = await _reconcile(session)
+    open_count = await _reconcile(session)
     await session.commit()
     return RunSummary(
         downloaded=len(synced.added) + len(synced.changed),
         files_tracked=len(listing),
         scans_read=read,
         scans_failed=failed,
-        findings_open=open_findings,
+        notifications_open=open_count,
     )
