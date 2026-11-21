@@ -136,11 +136,13 @@ async def import_sheets(session: AsyncSession) -> SheetImportSummary:
             sheets = read_workbook(path)
         except (BadZipFile, KeyError):
             summary.ignored_sheets.append(
-                str(path.relative_to(root))
+                path.relative_to(root).as_posix()
             )  # not a readable workbook
             continue
         for sheet, cells in sheets.items():
-            rows.extend(_sheet_rows(str(path.relative_to(root)), sheet, cells, summary))
+            rows.extend(
+                _sheet_rows(path.relative_to(root).as_posix(), sheet, cells, summary)
+            )
     await session.execute(delete(SheetRow))
     session.add_all(rows)
     await session.commit()

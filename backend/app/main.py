@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import truststore
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -9,6 +10,9 @@ from sqlalchemy import text
 from app.config import settings
 from app.db import engine
 from app.routers import agent_workspace, imported, imports, notifications
+
+# Trust the OS certificate store, so portal calls work behind TLS-inspecting proxies
+truststore.inject_into_ssl()
 
 app = FastAPI(title="Hackathon API")
 static_dir = Path(__file__).parent / "static"
