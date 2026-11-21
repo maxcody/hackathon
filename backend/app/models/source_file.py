@@ -2,6 +2,7 @@ import enum
 from datetime import datetime
 
 from sqlalchemy import DateTime, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -32,6 +33,8 @@ class SourceFile(Base):
     parser_version: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(16), default=FileStatus.PENDING)
     error: Mapped[str | None] = mapped_column(Text, default=None)
+    # What the model read from the file (cached, so each file version is read once)
+    extracted: Mapped[dict | None] = mapped_column(JSONB, default=None)
     processed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )

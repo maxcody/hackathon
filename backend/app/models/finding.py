@@ -2,9 +2,10 @@ import enum
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+from app.models.source_file import SourceFile
 
 
 class Severity(enum.StrEnum):
@@ -47,3 +48,9 @@ class Finding(Base):
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    source_file: Mapped[SourceFile | None] = relationship(lazy="joined")
+
+    @property
+    def source_path(self) -> str | None:
+        """Path of the file this finding came from, as evidence."""
+        return self.source_file.path if self.source_file else None
