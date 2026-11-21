@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+.local_data/
 *.pem
 *.key
 credentials.json
@@ -35,3 +36,5 @@ Thumbs.db
 # Build
 dist/
 build/
+
+backend/soony-data/
