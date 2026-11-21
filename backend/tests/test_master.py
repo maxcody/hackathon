@@ -48,17 +48,13 @@ def data_dir(tmp_path, monkeypatch):
 
 
 async def test_import_applies_updates_and_serves_data(client, data_dir):
-    summary = (await client.post("/master/import")).json()
+    summary = (await client.post("/import/master")).json()
     assert summary["products"] == 2 and summary["bom_lines"] == 2
     assert summary["skipped_updates"] == ["CMP-1.colour", "CMP-9.drawing_rev"]
 
     comp = (await client.get("/components/CMP-2")).json()
     assert comp["drawing_rev"] == "C" and comp["critical"] is True
     assert (await client.get("/components/CMP-1")).json()["drawing_rev"] == "A"
-    assert [
-        c["component_id"]
-        for c in (await client.get("/components?category=Print")).json()
-    ] == ["CMP-2"]
 
     product = (await client.get("/products/FG-1")).json()
     assert product["day_one_qty"] == 640
@@ -77,19 +73,19 @@ async def test_import_without_delta_files(client, data_dir, tmp_path):
     master = tmp_path / "soony" / "master"
     for name in ("ecn_nov30.csv", "part_changes_a.csv", "part_changes_b.csv"):
         (master / name).unlink()
-    summary = (await client.post("/master/import")).json()
+    summary = (await client.post("/import/master")).json()
     assert summary["bom_changes"] == 0 and summary["components"] == 2
 
 
 async def test_import_twice_does_not_duplicate(client, data_dir):
-    await client.post("/master/import")
-    await client.post("/master/import")
+    await client.post("/import/master")
+    await client.post("/import/master")
     assert len((await client.get("/products/FG-1")).json()["bom"]) == 2
 
 
 async def test_import_without_data_is_409(client, tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "data_dir", str(tmp_path))
-    assert (await client.post("/master/import")).status_code == 409
+    assert (await client.post("/import/master")).status_code == 409
 
 
 async def test_missing_product_and_component_are_404(client):

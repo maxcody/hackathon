@@ -8,22 +8,10 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db import engine
-from app.routers import (
-    agent,
-    agent_workspace,
-    files,
-    findings,
-    hermes,
-    launch,
-    master,
-    sheets,
-    status,
-    sync,
-)
+from app.routers import agent_workspace, imported, imports, notifications
 
-app = FastAPI(title="Linewatch — Soony Launch Control")
+app = FastAPI(title="Hackathon API")
 static_dir = Path(__file__).parent / "static"
-react_index = static_dir / "react" / "index.html"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.add_middleware(
     CORSMiddleware,
@@ -31,23 +19,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(launch.router)
-app.include_router(hermes.router)
-app.include_router(agent.router)
+app.include_router(imported.router)
+app.include_router(imports.router)
+app.include_router(notifications.router)
 app.include_router(agent_workspace.router)
-app.include_router(files.router)
-app.include_router(findings.router)
-app.include_router(master.router)
-app.include_router(sheets.router)
-app.include_router(status.router)
-app.include_router(sync.router)
 
 
 @app.get("/", include_in_schema=False)
 async def home() -> FileResponse:
-    """Serve the built React dashboard, with the legacy page as fallback."""
-    index = react_index if react_index.exists() else static_dir / "index.html"
-    return FileResponse(index)
+    """Serve the built React dashboard (``npm run build`` in ``frontend/``)."""
+    return FileResponse(static_dir / "react" / "index.html")
 
 
 @app.get("/health")

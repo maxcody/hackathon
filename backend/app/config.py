@@ -19,26 +19,20 @@ class Settings(BaseSettings):
         "https://start-hack-portal-cxh3crbdaef2f8gt.westeurope-01.azurewebsites.net"
     )
     portal_token: str | None = None
-    # Provider-agnostic LLM settings, used with the OpenAI SDK. Point
-    # llm_base_url at any OpenAI-compatible endpoint (OpenAI, Ollama, Groq, ...).
-    llm_model: str | None = None
-    llm_api_key: str | None = None
-    llm_base_url: str | None = None
-    agent_access_key: str | None = None
     # Dashboard chat engine: "codex" runs the local Codex CLI with its MCP tools,
     # "openai" calls LLM_MODEL directly (no tools).
     chat_engine: Literal["codex", "openai"] = "codex"
     codex_model: str | None = None  # empty: Codex's own default model
     codex_reasoning_effort: Literal["minimal", "low", "medium", "high"] = "low"
     codex_timeout_seconds: PositiveInt = 300
-    hermes_base_url: str | None = None
-    hermes_api_key: str | None = None
-    hermes_trigger_key: str | None = None
-    soony_portal_url: str | None = None
-    soony_portal_token: str | None = None
-    soony_portal_token_header: str = "Authorization"
-    soony_portal_token_prefix: str = "Bearer"
-    archive_dir: Path = Path(__file__).resolve().parents[2] / ".local_data"
+    # Only used by CHAT_ENGINE=openai; any OpenAI-compatible endpoint works.
+    llm_model: str | None = None
+    llm_api_key: str | None = None
+    llm_base_url: str | None = None
+    # SQLite file holding the dashboard's chat agents and their conversations
+    agents_db: Path = (
+        Path(__file__).resolve().parents[2] / ".local_data" / "agents.sqlite3"
+    )
 
 
 settings = Settings()

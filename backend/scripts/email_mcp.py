@@ -75,6 +75,23 @@ server = MCPServer(
 
 
 @server.tool()
+def sender_info() -> str:
+    """Return the address mail is sent from and who may receive mail.
+
+    Returns:
+        The sender address (which may also receive mail, e.g. for a test) and
+        the allowed recipient domains.
+    """
+    settings = EmailSettings()
+    if not settings.smtp_user:
+        return "No sender configured: SMTP_USER is not set."
+    return (
+        f"Sender: {settings.smtp_user} (may also be a recipient). "
+        f"Allowed recipient domains: {settings.email_allowed_domains}"
+    )
+
+
+@server.tool()
 def send_email(
     to: list[str],
     subject: str,

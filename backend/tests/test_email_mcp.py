@@ -1,6 +1,6 @@
 """Tests for the email MCP server's recipient guard."""
 
-from scripts.email_mcp import EmailSettings, blocked_recipients, send_email
+from scripts.email_mcp import EmailSettings, blocked_recipients, send_email, sender_info
 
 
 def make_settings(**overrides: str) -> EmailSettings:
@@ -32,3 +32,10 @@ def test_send_refuses_blocked_recipient_without_connecting(monkeypatch) -> None:
     monkeypatch.setenv("EMAIL_ALLOWED_DOMAINS", "suppliers.example.com")
     reply = send_email(to=["someone@elsewhere.com"], subject="Hi", body="Test")
     assert reply.startswith("Not sent: recipients outside allowed domains")
+
+
+def test_sender_info_names_sender_and_domains(monkeypatch) -> None:
+    monkeypatch.setenv("SMTP_USER", "team@gmail.com")
+    monkeypatch.setenv("EMAIL_ALLOWED_DOMAINS", "suppliers.example.com")
+    reply = sender_info()
+    assert "team@gmail.com" in reply and "suppliers.example.com" in reply

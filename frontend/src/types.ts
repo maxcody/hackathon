@@ -1,76 +1,51 @@
-/** A risk level returned by launch analysis. */
-export type Severity = "critical" | "high" | "medium" | "low";
+/** Severity an agent assigns to a notification (free text in the backend). */
+export type Severity = "critical" | "warning" | "info";
 
-/** Production progress for one product edition. */
-export interface Edition {
-  edition: string;
-  required: number;
-  packed: number;
-  remaining: number;
-  completion_pct: number;
-  hours_needed?: number | null;
+/** Fields the agents' notifications tool stores in a notification's `data`. */
+export interface NotificationData {
+  key?: string;
+  title?: string;
+  kind?: string;
+  severity?: string;
+  status?: string;
+  status_note?: string;
+  details?: string;
+  refs?: string[];
+  [field: string]: unknown;
 }
 
-/** A human-reviewable issue found in source data. */
-export interface Risk {
-  severity: Severity;
-  title: string;
-  detail: string;
-  evidence: string;
-  action: string;
-  owner?: string | null;
+/** One mismatch between the ERP and the customer side (`/notifications`). */
+export interface Notification {
+  id: number;
+  attr: string;
+  erp_val: string | null;
+  customer_val: string | null;
+  data: NotificationData;
+  seen_at: string;
 }
 
-/** Status and plain-language result for one analysis agent. */
-export interface Agent {
-  name: string;
-  status: string;
-  result: string;
+/** Result of `POST /import/sync`: portal files downloaded into the data folder. */
+export interface SyncResult {
+  added: string[];
+  changed: string[];
+  failed: string[];
+  unchanged: number;
 }
 
-/** A file-level difference between imported data snapshots. */
-export interface ChangeEvent {
-  kind: string;
-  severity?: Severity;
-  path: string;
-  summary: string;
-  detected_at: string;
+/** Result of `POST /import/master`. */
+export interface MasterImportSummary {
+  products: number;
+  components: number;
+  bom_lines: number;
+  bom_changes: number;
+  skipped_updates: string[];
 }
 
-/** Complete dashboard response from the launch API. */
-export interface LaunchBrief {
-  customer: string;
-  release: string;
-  deadline: string;
-  status: string;
-  generated_at: string;
-  summary: {
-    required: number;
-    packed: number;
-    remaining: number;
-    completion_pct: number;
-  };
-  editions: Edition[];
-  risks: Risk[];
-  agents: Agent[];
-  sources: Array<{ name: string; facts: string[] }>;
-  limitations: string[];
-  data?: {
-    imported: boolean;
-    file_count: number;
-    row_count: number;
-    warning_count: number;
-    imported_at: string | null;
-    portal_sync_enabled: boolean;
-  };
-  events: ChangeEvent[];
-  operating_priorities?: Array<{ title: string; detail: string; source: string }>;
-}
-
-/** Result returned after importing or syncing a portal snapshot. */
-export interface ImportResult {
-  file_count: number;
-  changed_count: number;
+/** Result of `POST /import/sheets`. */
+export interface SheetImportSummary {
+  rows: Record<string, number>;
+  skipped_rows: string[];
+  ignored_sheets: string[];
 }
 
 /** A user-created agent listed in the workspace. */

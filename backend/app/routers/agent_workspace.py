@@ -23,7 +23,7 @@ from app.schemas.agent_workspace import (
 from app.services.agent_workspace import AgentWorkspace
 
 router = APIRouter(prefix="/api/agent-workspace", tags=["agent workspace"])
-workspace = AgentWorkspace(settings.archive_dir / "agents.sqlite3")
+workspace = AgentWorkspace(settings.agents_db)
 
 
 @router.get("")

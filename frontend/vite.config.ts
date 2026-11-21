@@ -10,9 +10,12 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: 5173,
       strictPort: true,
-      proxy: {
-        "/api": env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8000",
-      },
+      proxy: Object.fromEntries(
+        ["/api", "/import", "/notifications"].map((path) => [
+          path,
+          env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8000",
+        ]),
+      ),
     },
     build: {
       outDir: "../backend/app/static/react",
