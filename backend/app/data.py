@@ -26,6 +26,22 @@ def read_csv(rel: str) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
+def _sheet_rows(z: zipfile.ZipFile, sheet: int) -> dict[int, dict[str, str]]:
+    """Return one worksheet as ``{row number: {column letter: text}}``.
+
+    Empty cells are omitted. Assumes the Nth sheet in the workbook is stored as
+    ``sheet<N>.xml`` (true for the portal files; upgrade if one ever differs).
+    """
+    xml = z.read(f"xl/worksheets/sheet{sheet}.xml").decode()
+    cells = re.findall(
+        r'<c r="([A-Z]+)(\d+)"[^>]*>(?:<is><t[^>]*>(.*?)</t></is>|<v>(.*?)</v>)', xml
+    )
+    rows: dict[int, dict[str, str]] = {}
+    for col, row, text, number in cells:
+        rows.setdefault(int(row), {})[col] = html.unescape(text or number)
+    return rows
+
+
 def read_xlsx(rel: str, sheet: int, header_row: int = 1) -> list[dict[str, str]]:
     """Read one sheet of an inline-string xlsx under ``soony/`` (stdlib only).
 
@@ -38,19 +54,22 @@ def read_xlsx(rel: str, sheet: int, header_row: int = 1) -> list[dict[str, str]]
         One dict per data row, keyed by the header text. Empty cells are omitted.
     """
     with zipfile.ZipFile(data_root() / "soony" / rel) as z:
-        xml = z.read(f"xl/worksheets/sheet{sheet}.xml").decode()
-    cells = re.findall(
-        r'<c r="([A-Z]+)(\d+)"[^>]*>(?:<is><t[^>]*>(.*?)</t></is>|<v>(.*?)</v>)', xml
-    )
-    rows: dict[int, dict[str, str]] = {}
-    for col, row, text, number in cells:
-        rows.setdefault(int(row), {})[col] = html.unescape(text or number)
+        rows = _sheet_rows(z, sheet)
     names = rows.get(header_row, {})
     return [
         {names[c]: v for c, v in cols.items() if c in names}
         for r, cols in sorted(rows.items())
         if r > header_row
     ]
+
+
+def read_workbook(path: Path) -> dict[str, dict[int, dict[str, str]]]:
+    """Read every sheet of an xlsx as ``{sheet name: {row: {column: text}}}``."""
+    with zipfile.ZipFile(path) as z:
+        names = re.findall(
+            r'<sheet [^>]*name="([^"]*)"', z.read("xl/workbook.xml").decode()
+        )
+        return {html.unescape(n): _sheet_rows(z, i) for i, n in enumerate(names, 1)}
 
 
 def unstocked_parts() -> set[str]:
