@@ -7,7 +7,9 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Grid } from "@astryxdesign/core/Grid";
+import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { getReadiness } from "./api";
+import { CoverageChart } from "./CoverageChart";
 import { Button } from "@astryxdesign/core/Button";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { severityDot, severityOf, sortIssues } from "./issues";
@@ -63,10 +65,12 @@ const TONE: Record<Tone, { label: string; rank: number }> = {
 function CoverageBar({ part, anchor }: { part: PartRow; anchor?: string }) {
   const covered = part.need ? Math.min(1, part.available / part.need) : 1;
   const tone = TONE[part.tone];
+  const pct = part.need ? Math.round(((part.available - part.need) / part.need) * 100) : 0;
+  const diff = `${pct > 0 ? "+" : pct < 0 ? "−" : ""}${Math.abs(pct)}%`; // available against needed
   const summary =
     part.tone === "short"
-      ? `${number.format(part.available)} of ${number.format(part.need)} · ${number.format(-part.balance)} missing`
-      : `${number.format(part.need)} needed · ${number.format(part.available)} in stock${part.tone === "disputed" ? " per ERP" : ""}`;
+      ? `${number.format(part.available)} of ${number.format(part.need)} · ${number.format(-part.balance)} missing (${diff})`
+      : `${number.format(part.need)} needed · ${number.format(part.available)} in stock${part.tone === "disputed" ? " per ERP" : ""} (${diff})`;
   return (
     <div className={`cov-row cov-${part.tone}`} id={anchor}>
       <div className="cov-head">
@@ -292,18 +296,23 @@ export function ReadinessPanel({ notifications }: { notifications: Notification[
           ))}
         </Grid>
 
-        <VStack gap={3}>
-          <HStack gap={3} vAlign="center" wrap="wrap">
-            <StackItem size="fill">
-              <Heading level={3}>Parts for the remaining packs</Heading>
-            </StackItem>
-            {(["short", "disputed", "ok"] as const).map((tone) => (
-              <span key={tone} className={`cov-count cov-${tone}`}>
-                <span className="cov-swatch" aria-hidden />
-                {byTone(tone).length} {TONE[tone].label.toLowerCase()}
-              </span>
-            ))}
-          </HStack>
+        <CoverageChart editions={data.editions} parts={data.parts} />
+
+        <Collapsible
+          trigger={
+            <HStack gap={4} vAlign="center" wrap="wrap">
+              <Text weight="medium">Part details</Text>
+              {(["short", "disputed", "ok"] as const).map((tone) => (
+                <span key={tone} className={`cov-count cov-${tone}`}>
+                  <span className="cov-swatch" aria-hidden />
+                  {byTone(tone).length} {TONE[tone].label.toLowerCase()}
+                </span>
+              ))}
+            </HStack>
+          }
+          defaultIsOpen={false}
+        >
+          <VStack gap={3}>
           <Card padding={0}>
             <div className="cov-list">
               {counted.map((part, index) => (
@@ -326,7 +335,8 @@ export function ReadinessPanel({ notifications }: { notifications: Notification[
             snapshot); hatched = missing. Shipments are listed but not counted, because their quantities are
             not in the ERP. "At risk" means the ERP shows enough, but an open issue disputes it.
           </Text>
-        </VStack>
+          </VStack>
+        </Collapsible>
       </VStack>
     </Section>
   );
