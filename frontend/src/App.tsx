@@ -179,7 +179,7 @@ function Dashboard({ notifications, setNotifications }: { notifications: Notific
 
         <section className="section-block priority-section" id="notifications" aria-labelledby="notifications-heading"><div className="section-heading"><div><span className="section-number">01</span><div><h2 id="notifications-heading">What needs a human now</h2><p>Mismatches the agents found between the ERP and the paper or supplier side. Check the sources before acting.</p></div></div><span className="priority-total">{openTotal} <small>open</small></span></div>
           <div className="priority-toolbar"><div className="filter-tabs" role="group" aria-label="Filter notifications">{(["all", ...severityOrder] as const).map((item) => <button key={item} className={`filter-tab ${filter === item ? "filter-active" : ""}`} onClick={() => setFilter(item)}>{item === "all" ? "All" : item}<span>{item === "all" ? openTotal : counts[item]}</span></button>)}<button className={`filter-tab ${showResolved ? "filter-active" : ""}`} onClick={() => setShowResolved((value) => !value)}>Resolved</button></div><label className="search-field"><Icon name="search" /><input aria-label="Search notifications" placeholder="Search a part, file or issue" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
-          <div className="risk-list">{visible.length ? visible.map((n) => <NotificationCard key={n.id} notification={n} onStatus={setStatus} onChanged={() => { refresh().catch(() => undefined); }} />) : <div className="empty-state"><div className="empty-symbol"><Icon name="check" /></div><strong>{notifications.length ? "No matching notifications" : "No notifications yet"}</strong><p>{notifications.length ? "Try another filter or search term." : "Ask an agent in the Agents tab to check the data; its findings appear here."}</p></div>}</div>
+          <div className="nc-list">{visible.length ? visible.map((n) => <NotificationCard key={n.id} notification={n} onStatus={setStatus} onChanged={() => { refresh().catch(() => undefined); }} />) : <div className="empty-state"><div className="empty-symbol"><Icon name="check" /></div><strong>{notifications.length ? "No matching notifications" : "No notifications yet"}</strong><p>{notifications.length ? "Try another filter or search term." : "Ask an agent in the Agents tab to check the data; its findings appear here."}</p></div>}</div>
         </section>
 
         <footer className="page-footer"><span><b>LINEWATCH</b> <i>·</i> SOONY LAUNCH CONTROL</span><span>Evidence first. Human decisions always.</span></footer>
@@ -232,13 +232,39 @@ function NotificationBell({ notifications }: { notifications: Notification[] }) 
   );
 }
 
-/** Display one notification with its values, sources and status controls. */
+/** Display one notification: what differs, why it matters, how to solve it. */
 function NotificationCard({ notification: n, onStatus, onChanged }: { notification: Notification; onStatus: (n: Notification, status: string) => void; onChanged: () => void }) {
   const severity = severityOf(n);
   const status = n.data.status ?? "open";
-  return <article className={`risk-card risk-${severityClass[severity]}`}><div className="risk-accent" /><div className="risk-content"><div className="risk-topline"><span className={`severity-badge severity-${severityClass[severity]}`}><i />{severity}</span>{n.data.kind && <span className="risk-source-label">{n.data.kind}</span>}</div><h3>{n.data.title || `${n.attr} mismatch`}</h3><p className="risk-detail"><strong>{n.attr}:</strong> ERP {n.erp_val ?? "–"} vs customer side {n.customer_val ?? "–"}</p>{n.data.details && <p className="risk-detail">{n.data.details}</p>}{(n.data.refs ?? []).length > 0 && <details className="risk-sources"><summary>{(n.data.refs ?? []).length} {(n.data.refs ?? []).length === 1 ? "source" : "sources"}</summary>{(n.data.refs ?? []).map((ref) => <div className="risk-evidence" key={ref}><Icon name="file" /><span>{ref}</span></div>)}</details>}{(n.data.solutions ?? []).length > 0 && <SolutionList notification={n} onChanged={onChanged} />}</div><aside className="risk-next"><span>STATUS</span><p>{status.replace("_", " ")}{n.data.status_note ? ` · ${n.data.status_note}` : ""}</p><small>LAST SEEN · {localTime(n.seen_at)}</small>{status === "resolved" ? <button className="text-button" onClick={() => onStatus(n, "open")}>Reopen</button> : <button className="text-button" onClick={() => onStatus(n, "resolved")}><Icon name="check" /> Mark resolved</button>}</aside></article>;
+  const refs = n.data.refs ?? [];
+  const kind = (n.data.kind ?? "").replace(/_/g, " ");
+  return (
+    <article className={`nc nc-${severity}${status === "resolved" ? " nc-resolved" : ""}`}>
+      <header className="nc-head">
+        <div className="nc-title">
+          <span className="nc-meta"><i className="nc-dot" />{severity}{kind && <> · {kind}</>}</span>
+          <h3>{n.data.title || `${n.attr} mismatch`}</h3>
+        </div>
+        <div className="nc-actions">
+          <span className={`nc-status nc-status-${status}`}>{status.replace("_", " ")}</span>
+          <button type="button" className="nc-resolve" onClick={() => onStatus(n, status === "resolved" ? "open" : "resolved")}>{status === "resolved" ? "Reopen" : "Resolve"}</button>
+        </div>
+      </header>
+      {(n.erp_val || n.customer_val) && (
+        <div className="nc-compare">
+          <div><span>ERP · {n.attr.replace(/_/g, " ")}</span><strong>{n.erp_val ?? "–"}</strong></div>
+          <div><span>Actual</span><strong>{n.customer_val ?? "–"}</strong></div>
+        </div>
+      )}
+      {n.data.details && <p className="nc-details">{n.data.details}</p>}
+      {(n.data.solutions ?? []).length > 0 && <SolutionList notification={n} onChanged={onChanged} />}
+      <footer className="nc-foot">
+        {refs.length > 0 && <details className="nc-sources"><summary>{refs.length} {refs.length === 1 ? "source" : "sources"}</summary><ul>{refs.map((ref) => <li key={ref}>{ref}</li>)}</ul></details>}
+        <span>Last seen {localTime(n.seen_at)}{n.data.status_note ? ` · ${n.data.status_note}` : ""}</span>
+      </footer>
+    </article>
+  );
 }
-
 const SOLUTION_KIND: Record<Solution["kind"], string> = { email: "Email", claim: "Claim", internal: "Internal", decision: "Decision" };
 
 /** Proposed solutions of a notification; email solutions open a review popup. */
@@ -246,21 +272,21 @@ function SolutionList({ notification, onChanged }: { notification: Notification;
   const [open, setOpen] = useState<number | null>(null);
   const solutions = notification.data.solutions ?? [];
   return (
-    <div className="solutions">
-      <h4>Proposed solutions</h4>
+    <div className="sols">
+      <h4>How to solve it</h4>
       <ol>
         {solutions.map((solution, index) => (
-          <li key={index} className={`solution solution-${solution.kind}`}>
-            <div className="solution-main">
-              <span className="solution-kind">{SOLUTION_KIND[solution.kind] ?? solution.kind}</span>
+          <li key={index} className={`sol sol-${solution.kind}`}>
+            <span className="sol-kind">{SOLUTION_KIND[solution.kind] ?? solution.kind}</span>
+            <div className="sol-main">
               <strong>{solution.title}</strong>
               <p>{solution.description}</p>
-              <small>{[solution.owner && `Owner: ${solution.owner}`, solution.deadline && `By: ${solution.deadline}`, solution.cost && `Cost: ${solution.cost}`].filter(Boolean).join(" · ")}</small>
-              {solution.approval && <small className="solution-approval">Needs approval: {solution.approval}</small>}
+              <small>{[solution.owner, solution.deadline && `by ${solution.deadline}`, solution.cost].filter(Boolean).join(" · ")}</small>
+              {solution.approval && <small className="sol-approval">Approval: {solution.approval}</small>}
             </div>
             {solution.email && (solution.status === "sent"
-              ? <button type="button" className="solution-sent" onClick={() => setOpen(index)}>✓ Email sent {solution.sent_at ? localTime(solution.sent_at) : ""}</button>
-              : <button type="button" className="solution-action" onClick={() => setOpen(index)}>Review email</button>)}
+              ? <button type="button" className="sol-sent" onClick={() => setOpen(index)}>✓ Sent</button>
+              : <button type="button" className="sol-action" onClick={() => setOpen(index)}>Review email</button>)}
           </li>
         ))}
       </ol>
