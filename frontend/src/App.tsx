@@ -8,8 +8,8 @@ import {
   CpuChipIcon,
 } from "@heroicons/react/24/outline";
 import { AppShell } from "@astryxdesign/core/AppShell";
-import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
-import { TopNav } from "@astryxdesign/core/TopNav";
+import { SideNav, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
+import { TopNav, TopNavHeading } from "@astryxdesign/core/TopNav";
 import { Layout, LayoutContent, HStack, VStack, StackItem } from "@astryxdesign/core/Layout";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { Button } from "@astryxdesign/core/Button";
@@ -145,6 +145,13 @@ export function App() {
       topNav={
         <TopNav
           label={pageTitle(navLocation)}
+          heading={
+            <TopNavHeading
+              logo={<img src="/logo.svg" alt="" width={24} height={24} />}
+              heading="Linewatch"
+              headingHref="#overview"
+            />
+          }
           endContent={
             <HStack gap={3} vAlign="center">
               <NotificationBell notifications={notifications ?? []} />
@@ -173,9 +180,6 @@ function AppSideNav({ location }: { location: string }) {
   return (
     <SideNav
       collapsible
-      header={
-        <SideNavHeading heading="Linewatch" headingHref="#overview" />
-      }
       footer={
         // color="inherit" takes the sidebar's light text color from the theme (secondary gray is unreadable on dark green)
         <VStack gap={1} padding={3}>
