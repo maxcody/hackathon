@@ -13,6 +13,7 @@ import { TopNav } from "@astryxdesign/core/TopNav";
 import { Layout, LayoutContent, HStack, VStack, StackItem } from "@astryxdesign/core/Layout";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { Button } from "@astryxdesign/core/Button";
+import { LoadingButton } from "./LoadingButton";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Avatar } from "@astryxdesign/core/Avatar";
 import { Banner } from "@astryxdesign/core/Banner";
@@ -264,7 +265,7 @@ function Dashboard({ notifications }: { notifications: Notification[] }) {
                   </Text>
                 </VStack>
               </StackItem>
-              <Button
+              <LoadingButton
                 label={busy ? "Syncing…" : "Sync portal data"}
                 variant="secondary"
                 icon={<Icon icon={ArrowPathIcon} size="sm" />}
@@ -505,7 +506,7 @@ function RiskCheck({ onFinished }: { onFinished: () => Promise<void> }) {
 
   return (
     <VStack gap={1} hAlign="end">
-      <Button
+      <LoadingButton
         label={running ? "Checking…" : "Run risk check"}
         variant="secondary"
         isLoading={running}

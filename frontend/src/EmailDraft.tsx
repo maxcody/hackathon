@@ -5,6 +5,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { Button } from "@astryxdesign/core/Button";
+import { LoadingButton } from "./LoadingButton";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Card } from "@astryxdesign/core/Card";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
@@ -261,7 +262,7 @@ export function EmailDraftCard({
             <Text type="supporting" color="secondary">
               Draft · sent only when you click Send
             </Text>
-            <Button
+            <LoadingButton
               label={busy ? "Sending…" : "Send"}
               variant="primary"
               isLoading={busy}
@@ -401,7 +402,7 @@ export function ComposeWindow({
 
         {editable && (
           <HStack gap={3} vAlign="center">
-            <Button
+            <LoadingButton
               label={busy ? "Sending…" : "Send"}
               variant="primary"
               isLoading={busy}

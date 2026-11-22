@@ -4,7 +4,7 @@ import { Divider } from "@astryxdesign/core/Divider";
 import { Link } from "@astryxdesign/core/Link";
 import { Layout, LayoutContent, LayoutPanel, HStack, VStack, StackItem } from "@astryxdesign/core/Layout";
 import { Heading, Text } from "@astryxdesign/core/Text";
-import { Button } from "@astryxdesign/core/Button";
+import { LoadingButton } from "./LoadingButton";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Badge } from "@astryxdesign/core/Badge";
 import { TabList, Tab } from "@astryxdesign/core/TabList";
@@ -94,7 +94,7 @@ function AnalysisPanel({ message, onRetry }: { message: MailMessage; onRetry: ()
         <VStack gap={2}>
           <Text weight="semibold">Agent analysis failed</Text>
           <Text>{analysis.error}</Text>
-          <Button
+          <LoadingButton
             label={busy ? "Restarting…" : "Analyze again"}
             variant="secondary"
             isLoading={busy}
@@ -112,7 +112,7 @@ function AnalysisPanel({ message, onRetry }: { message: MailMessage; onRetry: ()
             <Text weight="semibold">Agent analysis</Text>
             {analysis.language && <Badge label={analysis.language.toUpperCase()} variant="neutral" />}
           </HStack>
-          <Button
+          <LoadingButton
             label={busy ? "Restarting…" : "Analyze again"}
             variant="ghost"
             size="sm"
@@ -236,7 +236,7 @@ export function InboxPage() {
                 {box.sender}
               </Text>
             )}
-            <Button
+            <LoadingButton
               label={loading ? "Refreshing…" : "Refresh"}
               variant="secondary"
               icon={<Icon icon={ArrowPathIcon} size="sm" />}

@@ -13,6 +13,7 @@ import { Avatar } from "@astryxdesign/core/Avatar";
 import { Layout, LayoutContent, HStack, VStack, StackItem } from "@astryxdesign/core/Layout";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { Button } from "@astryxdesign/core/Button";
+import { LoadingButton } from "./LoadingButton";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -167,7 +168,7 @@ export function AgentsPage() {
                       setCreateOpen(false);
                     }}
                   />
-                  <Button
+                  <LoadingButton
                     label={creating ? "Creating…" : "Create agent"}
                     variant="primary"
                     type="submit"
