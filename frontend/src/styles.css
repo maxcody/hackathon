@@ -25,3 +25,28 @@
 .bell-empty{margin:0;padding:18px 16px;font-size:12.5px;color:var(--muted)}
 .bell-all{display:block;padding:11px 16px;border-top:1px solid var(--line);font-size:12px;font-weight:600;color:var(--green);text-decoration:none}
 .bell-all:hover{background:#f6f8f3}
+/* Proposed solutions on a notification, and the email review popup */
+.solutions{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.solutions h4{margin:0 0 8px;font:600 12px "DM Sans",sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.solutions ol{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.solution{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fbfcfa}
+.solution-main{min-width:0}
+.solution-main strong{display:block;margin:4px 0 2px;font-size:13.5px;color:var(--ink)}
+.solution-main p{margin:0 0 4px;font-size:13px;line-height:1.5;color:#3f4a44}
+.solution-main small{display:block;font-size:11.5px;color:var(--muted)}
+.solution-approval{margin-top:2px;color:var(--amber)!important;font-weight:600}
+.solution-kind{display:inline-block;padding:1px 8px;border-radius:999px;background:#e6ece2;color:#36543c;font:600 10.5px "DM Sans",sans-serif;text-transform:uppercase;letter-spacing:.3px}
+.solution-email .solution-kind,.solution-claim .solution-kind{background:#e3ebf5;color:#2f4f77}
+.solution-decision .solution-kind{background:#f5ead9;color:#7a4f17}
+.solution-action,.solution-sent{flex:none;align-self:center;padding:7px 14px;border-radius:999px;font:600 12.5px "DM Sans",sans-serif;cursor:pointer;white-space:nowrap}
+.solution-action{border:0;background:#1c1c1a;color:#fff}
+.solution-action:hover{background:#000}
+.solution-sent{border:1px solid #cfe0c8;background:#eef6ea;color:#2f5a3a}
+.solution-dialog{width:min(100% - 24px,700px);max-height:calc(100dvh - 40px);padding:18px;border:0;border-radius:18px;background:#fafaf9;box-shadow:0 24px 60px rgba(0,0,0,.25)}
+.solution-dialog::backdrop{background:rgba(20,24,22,.45)}
+.solution-dialog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.solution-dialog-head span{display:block;font-size:12px;color:var(--muted)}
+.solution-dialog-head strong{display:block;font-size:16px;color:var(--ink)}
+.solution-dialog-head button{width:30px;height:30px;border:0;border-radius:50%;background:#ececea;font-size:18px;line-height:1;cursor:pointer}
+.solution-dialog .mail{max-width:none;margin:0}
+@media(max-width:600px){.solution{flex-direction:column}.solution-action,.solution-sent{align-self:flex-start}}

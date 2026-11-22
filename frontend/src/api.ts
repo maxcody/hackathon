@@ -37,6 +37,15 @@ export function updateNotificationData(id: number, data: NotificationData): Prom
   return request(`/notifications/${id}`, json("PATCH", { data }));
 }
 
+/** Send a solution's (possibly edited) email; returns the updated notification. */
+export function sendSolutionEmail(
+  notificationId: number,
+  index: number,
+  email: { to: string[]; cc: string[]; subject: string; body: string; approved_by?: string },
+): Promise<Notification> {
+  return request(`/notifications/${notificationId}/solutions/${index}/send`, json("POST", email));
+}
+
 /** Download new or changed portal files into the backend's data folder. */
 export function syncPortal(): Promise<SyncResult> {
   return request("/import/sync", { method: "POST" });

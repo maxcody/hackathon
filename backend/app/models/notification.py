@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, String, Text, func
+from sqlalchemy import DateTime, Index, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,6 +18,10 @@ class Notification(Base):
     """
 
     __tablename__ = "notifications"
+    # At most one row per problem key (agents upsert by data.key)
+    __table_args__ = (
+        Index("uq_notifications_key", text("(data->>'key')"), unique=True),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     attr: Mapped[str] = mapped_column(String(64))

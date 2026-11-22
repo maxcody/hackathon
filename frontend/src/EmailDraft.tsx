@@ -102,7 +102,18 @@ export function sameDraft(a: Draft, b: Draft): boolean {
  * @param onSend - Called with the (possibly edited) draft; omit for a read-only preview.
  * @param status - Label shown instead of the actions, e.g. "Sent to agent".
  */
-export function EmailDraftCard({ draft, onSend, status }: { draft: Draft; onSend?: (draft: Draft) => void; status?: string }) {
+export function EmailDraftCard({ draft, onSend, status, translation, approval, busy }: {
+  draft: Draft;
+  onSend?: (draft: Draft, approvedBy?: string) => void;
+  status?: string;
+  /** English translation of the body, shown for review. */
+  translation?: string;
+  /** Who must approve (PP-07); Send stays disabled until someone confirms. */
+  approval?: string;
+  busy?: boolean;
+}) {
+  const [approvedBy, setApprovedBy] = useState("");
+  const [approved, setApproved] = useState(false);
   const [to, setTo] = useState(draft.to.join(", "));
   const [cc, setCc] = useState(draft.cc.join(", "));
   const [subject, setSubject] = useState(draft.subject);
@@ -141,11 +152,19 @@ export function EmailDraftCard({ draft, onSend, status }: { draft: Draft; onSend
       {editable
         ? <textarea className="mail-body" aria-label="Message" rows={Math.min(16, Math.max(4, body.split("\n").length + 1))} value={body} onChange={(event) => setBody(event.target.value)} />
         : <div className="mail-body">{draft.body}</div>}
+      {translation && <details className="mail-translation"><summary>English translation</summary><p>{translation}</p></details>}
+      {editable && approval && (
+        <div className="mail-approval">
+          <p><strong>Approval needed:</strong> {approval}</p>
+          <label><input type="checkbox" checked={approved} onChange={(event) => setApproved(event.target.checked)} /> Approved by</label>
+          <input aria-label="Approver name" placeholder="Name of approver" value={approvedBy} onChange={(event) => setApprovedBy(event.target.value)} />
+        </div>
+      )}
       {editable && (
         <div className="mail-foot">
           <span className="mail-hint">Draft · sent only when you click Send</span>
-          <button type="button" className="mail-send" disabled={!edited.to.length || !subject.trim() || !body.trim()} onClick={() => onSend(edited)}>
-            Send
+          <button type="button" className="mail-send" disabled={busy || !edited.to.length || !subject.trim() || !body.trim() || (!!approval && (!approved || !approvedBy.trim()))} onClick={() => onSend(edited, approval ? approvedBy.trim() : undefined)}>
+            {busy ? "Sending…" : "Send"}
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 12 20 4l-6.5 16-2.5-6.5L4 12Z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" /></svg>
           </button>
         </div>

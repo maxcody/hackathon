@@ -11,7 +11,34 @@ export interface NotificationData {
   status_note?: string;
   details?: string;
   refs?: string[];
+  solutions?: Solution[];
   [field: string]: unknown;
+}
+
+/** An email an agent prepared as (part of) a solution. */
+export interface SolutionEmail {
+  to: string[];
+  cc: string[];
+  subject: string;
+  body: string;
+  translation?: string;
+}
+
+/** One proposed way to solve a notification's problem. */
+export interface Solution {
+  kind: "email" | "internal" | "decision" | "claim";
+  title: string;
+  description: string;
+  owner?: string;
+  deadline?: string;
+  cost?: string;
+  /** Who must approve before acting (PP-07); empty if nobody. */
+  approval?: string;
+  email?: SolutionEmail | null;
+  status?: "proposed" | "sent";
+  sent_at?: string;
+  approved_by?: string | null;
+  sent_email?: Omit<SolutionEmail, "translation">;
 }
 
 /** One mismatch between the ERP and the customer side (`/notifications`). */

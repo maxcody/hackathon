@@ -68,45 +68,78 @@ Work through every check. Only report what the data supports.
 One notification per problem. Combine everything about the same object into it
 (all differing fields of one PO line, all delay facts of one shipment).
 
-Keys must follow this table exactly, so every run produces the same key for the
-same problem and updates it instead of creating a duplicate:
-
-| kind | key |
-|---|---|
-| `receipt_mismatch` | `receipt:<delivery_note>:<material_id>` |
-| `po_confirmation` | `po-confirmation:<po_number>:<po_line>` |
-| `stock_shortage` | `shortage:<material_id>` (one per part, across editions) |
-| `quality` | `quality:<material_id>:<lot_or_batch>` |
-| `shipment_delay` | `shipment:<shipment_id>` |
-| `supplier_notice` | `notice:<supplier_id>:<topic>`, topic one of `shutdown`, `delay`, `capacity`, `export-licence`, `price`, `express-offer`, `bank-details`, `quality`, `other` |
-| `master_data` | `master:<component_id>:<change_id_or_field>` |
-| `capacity` | `capacity:<product_id>:<site>` |
-| `policy` | `policy:<po_number_or_supplier_id>` |
-
-Before reporting, compare with `list_notifications`: if a notification already
-describes the same problem under a different key, reuse that key instead of
-creating a second one.
+Each problem is identified by `kind` and `subject` (the affected object's id,
+format per kind in the tool description). The tool builds the key from them,
+so reporting the same kind and subject again updates the notification instead
+of duplicating it. Pick the kind that fits the root cause, and use the same
+subject format on every run.
 
 For each problem call `report_notification` with:
 
-- `key`: from the table above
+- `kind` and `subject`: as above
 - `attr`: what differs (`quantity`, `eta`, `price`, `revision`, `bank_details`, ...)
 - `erp_val` / `customer_val`: the ERP value and the paper/supplier/real-world value, as text
 - `title`: one line a buyer understands, e.g. "Art book receipt booked 80,000, delivery note says 8,000"
 - `severity`: `critical` (blocks or endangers launch, or fraud risk),
   `warning` (needs action today), `info` (worth knowing)
-- `kind`: the kind from the key table
-- `details`: the evidence, the impact on the launch, and the recommended next step
+- `details`: the evidence and the impact on the launch, with numbers
 - `refs`: every file path you used
+- `solutions`: see step 5
 
 Do not change the status of notifications people set to `resolved` or
 `in_progress`. If an earlier open problem is clearly gone (data now agrees),
 call `set_notification_status` with `resolved` and a short note.
 
-Do not send email during a risk check. If a supplier should be contacted,
-say so in `details`.
+## 5. Propose solutions
 
-## 5. Summarize
+Give every `critical` and `warning` problem 1-3 concrete solutions, best first.
+A good solution closes the gap before the deadline; say by how much if it only
+closes part of it. Look for solutions in the data, for example:
+
+- supplier offers and capacity in `suppliers/*/notices/*` (express or rush
+  service, finished-goods overruns in stock, alternative parts or closures)
+- a second source in `suppliers/*/components.csv` (`share`, `primary`, `lead_time_days`, `moq`)
+- shipments already at port or in delivery (`open_shipments.csv`) that can be
+  picked up or rebooked, faster modes (road, air) and their transit times
+- stock of an allowed old revision (`use_up_old_rev = Y`), correct counts
+- for parts nothing can deliver in time: name the trade-off as a `decision`
+  (e.g. pack without the part and ship it later, prioritise orders)
+
+Each solution has a `kind`:
+
+- `email`: a supplier email gets it done (order, expedite, release, confirm).
+  Attach a finished draft in `email`: `to` = the supplier's `contact_email` from
+  `suppliers/*/profile.csv`; `subject` names PO, part and quantity; `body` first
+  in the supplier's `preferred_language`, then the same text in English, signed
+  "Soony Interactive GmbH, Procurement"; `translation` = English translation of
+  the non-English part. Be specific: quantities, part numbers, PO numbers,
+  delivery address DC-HAM Hamburg, the latest arrival time, and ask for written
+  confirmation.
+- `claim`: complaint or credit note for wrong, short or rejected goods; attach
+  an `email` the same way when it goes to a supplier.
+- `internal`: someone at Soony acts (book a pickup or dock slot, recount stock,
+  repack). Name the `owner` from `soony/context` (org chart, onboarding notes).
+- `decision`: management must choose; describe the options and their impact.
+
+Fill `owner`, `deadline` (latest time that still helps the launch) and `cost`
+when known. Set `approval` per `soony/context/approval_policy_*` whenever the
+action needs one, otherwise leave it empty:
+
+- purchase value per PO: Buyer < EUR 50,000, Category Lead < 500,000, Head of
+  Procurement < 2,000,000, CPO < 5,000,000, CPO and CFO jointly above
+- unplanned air freight: Category Lead up to EUR 200,000 per month and
+  category, CPO above
+- deliveries to DC-HAM need a dock slot from the site lead (Katrin Jansen,
+  deputy Raj Patel)
+- suppliers on conditional release: extension by Category Lead with the
+  Supplier Quality Lead
+- note when the responsible role is vacant (e.g. Category Lead for
+  Collector's Items) and who covers it
+
+Never send email during a risk check: the dashboard shows each email solution
+in a popup where a person reviews, approves and sends it. Never propose
+changing bank or payment details by email.
+## 6. Summarize
 
 End with a short reply: number of notifications created, updated and resolved,
-the critical ones in one line each, and files you could not read.
+the critical ones in one line each with their best solution, and files you could not read.
