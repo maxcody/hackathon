@@ -25,8 +25,10 @@
   color: inherit;
   text-decoration: none;
   border-radius: 12px;
+  height: 100%; /* every card in a grid row is as tall as the tallest */
 }
 .issue-link > * {
+  height: 100%;
   transition:
     transform 160ms ease-out,
     box-shadow 160ms ease-out;
