@@ -19,6 +19,15 @@ function localTime(value: string | null | undefined): string {
   return Number.isNaN(date.valueOf()) ? value : date.toLocaleString();
 }
 
+const LAUNCH = new Date("2026-11-22T20:00:00+01:00");
+
+/** Time left until launch, e.g. "16 h 40 min left". */
+function timeToLaunch(): string {
+  const minutes = Math.round((LAUNCH.getTime() - Date.now()) / 60000);
+  if (minutes <= 0) return "launched";
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} min left`;
+}
+
 /** Normalize a notification's free-text severity to a known level. */
 function severityOf(notification: Notification): Severity {
   const value = String(notification.data.severity ?? "").toLowerCase();
@@ -166,16 +175,15 @@ function Dashboard({ notifications, setNotifications }: { notifications: Notific
 
   return (
     <main id="overview" className="main-content">
-      <header className="topbar"><div className="mobile-brand"><span className="brand-mark">L</span> linewatch<span className="brand-period">.</span></div><div className="breadcrumbs">Workspaces <span>/</span> Soony <span>/</span> <strong>Launch overview</strong></div><div className="topbar-right"><span className="live-badge"><i /> LIVE VIEW</span><NotificationBell notifications={notifications} /><span className="top-divider" /><span className="top-avatar">S</span></div></header>
+      <header className="topbar"><div className="mobile-brand"><span className="brand-mark">L</span> linewatch<span className="brand-period">.</span></div><div className="ov-crumb">Overview</div><div className="topbar-right"><NotificationBell notifications={notifications} /><span className="top-divider" /><span className="top-avatar">S</span></div></header>
       <div className="content-wrap">
-        <section className="hero-row">
-          <div><div className="eyebrow"><span className="eyebrow-mark" /> RELEASE OPERATIONS <span className="eyebrow-slash">/</span> 01</div><h1>Keep the line <em>running.</em></h1><p className="hero-subtitle">What the agents found in the data, and what needs a person right now.</p></div>
-          <a className="button button-dark" href="#agents"><Icon name="spark" /> Open agents</a>
+        <section className="ov-head" aria-label="Launch">
+          <div>
+            <h1>Grand Heist 6 launch</h1>
+            <p>Sun 22 Nov, 20:00 · DC Hamburg · <strong>{timeToLaunch()}</strong></p>
+          </div>
+          <button type="button" className="ov-sync" onClick={handleSync} disabled={busy} title="Download new portal files and reload the database">{busy ? "Syncing…" : "Sync portal data"}</button>
         </section>
-
-        <section className="deadline-banner" aria-label="Launch deadline"><div className="deadline-symbol"><Icon name="clock" /></div><div className="deadline-copy"><span className="banner-overline">FIXED LAUNCH DEADLINE <span className="banner-dot" /> NON-NEGOTIABLE</span><strong>Grand Heist 6 launches <b>Sunday, 22 November at 20:00</b></strong><small>Every copy must be packed and ready at the Hamburg distribution center.</small></div><div className="deadline-location"><span>FULFILMENT SITE</span><strong>Hamburg <small>· DC-HAM</small></strong><span className="location-note">One site · no alternate</span></div></section>
-
-        <section className="data-toolbar" aria-label="Portal sync"><div className="data-summary"><div className="data-icon ready"><Icon name="file" /></div><div><div className="data-title-row"><strong>Soony portal data</strong></div><p>Download new or changed portal files, then reload products, components, BOM and sheet rows into the database.</p></div></div><div className="toolbar-actions"><button className="button button-sync" onClick={handleSync} disabled={busy}><Icon name="refresh" /> {busy ? "Syncing…" : "Sync and import"}</button></div></section>
 
         {error && <div className="message message-error" role="alert"><Icon name="alert" /><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss">×</button></div>}
         {notice && <div className="message message-success" role="status"><Icon name="check" /><span>{notice}</span><button onClick={() => setNotice(null)} aria-label="Dismiss">×</button></div>}

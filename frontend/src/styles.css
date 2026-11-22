@@ -159,3 +159,15 @@
 .ready-issue:hover{text-decoration:underline}
 .ready-issue em{color:#8a948d;font-style:normal;font-weight:500}
 .ready-note{margin:8px 2px 0;color:#9aa39c;font-size:12px}.ready-pace{margin-top:2px!important;color:#5f6b63!important;font-weight:600}
+
+/* Overview header (replaces hero, deadline banner and portal card) */
+.ov-crumb{color:#1f2d28;font:600 14px "DM Sans",sans-serif}
+.ov-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding-bottom:18px;border-bottom:1px solid #eef0eb}
+.ov-head h1{margin:0;color:#1f2d28;font:700 26px/1.2 Manrope,sans-serif;letter-spacing:-.3px}
+.ov-head p{margin:6px 0 0;color:#5f6b63;font-size:14px}
+.ov-head p strong{color:#a06a24;font-weight:600}
+.ov-sync{flex:none;padding:8px 14px;border:1px solid #e3e6e0;border-radius:8px;background:#fff;color:#1f2d28;font:600 13px "DM Sans",sans-serif;cursor:pointer}
+.ov-sync:hover{background:#f6f8f3}
+.ov-sync:disabled{color:#9aa39c;cursor:default}
+.ov-head+.message,.ov-head~.ready{margin-top:20px}
+@media(max-width:600px){.ov-head{flex-direction:column;align-items:flex-start}}
