@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { importMaster, importSheets, listNotifications, sendSolutionEmail, syncPortal, updateNotificationData } from "./api";
-import type { Notification, Severity, Solution } from "./types";
+import type { ReactNode } from "react";
+import { getSkillRun, importMaster, importSheets, listNotifications, sendSolutionEmail, startSkillRun, syncPortal, updateNotificationData } from "./api";
+import type { Notification, Severity, SkillRun, Solution } from "./types";
 import { ComposeWindow } from "./EmailDraft";
 import type { Draft } from "./EmailDraft";
 import { AgentsPage } from "./AgentsPage";
@@ -56,91 +57,95 @@ function Icon({ name }: { name: string }) {
 export function App() {
   const [location, setLocation] = useState(window.location.hash || "#overview");
   const [notifications, setNotifications] = useState<Notification[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const refresh = useCallback(async () => {
+    try {
+      setNotifications(await listNotifications());
+      setLoadError(null);
+    } catch (reason) {
+      setLoadError(reason instanceof Error ? reason.message : "Could not load issues.");
+    }
+  }, []);
   useEffect(() => {
     const onNavigate = () => setLocation(window.location.hash || "#overview");
     window.addEventListener("hashchange", onNavigate);
     return () => window.removeEventListener("hashchange", onNavigate);
   }, []);
+  useEffect(() => {
+    void refresh();
+    // Agents post findings in the background, so keep every page current.
+    const timer = window.setInterval(() => void refresh(), REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
+
+  const issues = location === "#issues" || location.startsWith("#n-");
+  let page;
+  if (location === "#agents") page = <AgentsPage />;
+  else if (location === "#inbox") page = <InboxPage />;
+  else if (location === "#data") page = <DataPage notifications={notifications ?? []} />;
+  else if (notifications === null) {
+    page = loadError
+      ? <div className="load-error"><h1>The backend is not reachable.</h1><p>{loadError}</p><button className="button button-primary" onClick={() => void refresh()}>Try again</button></div>
+      : <div className="loading-screen"><p>Loading…</p></div>;
+  } else if (issues) page = <IssuesPage notifications={notifications} refresh={refresh} focus={location.startsWith("#n-") ? location.slice(1) : null} />;
+  else page = <Dashboard notifications={notifications} />;
   return (
     <div className="app-shell">
-      <Sidebar location={location} openCount={notifications?.filter(isOpen).length ?? null} />
-      {location === "#agents" ? <AgentsPage /> : location === "#inbox" ? <InboxPage /> : location === "#data" ? <DataPage notifications={notifications ?? []} /> : <Dashboard notifications={notifications} setNotifications={setNotifications} />}
+      <Sidebar location={issues ? "#issues" : location} />
+      {page}
     </div>
   );
 }
 
-/** Keep workspace navigation visible across tabs. */
-function Sidebar({ location, openCount }: { location: string; openCount: number | null }) {
-  const links = [
-    ["#overview", "grid", "Overview"],
-    ["#notifications", "alert", "Notifications"],
-    ["#agents", "spark", "Agents"],
-    ["#inbox", "mail", "Inbox"],
-    ["#data", "file", "Data"],
+/** Line icons for the sidebar (16px, current color). */
+const NAV_ICONS: Record<string, ReactNode> = {
+  overview: <path d="M3 3h7v7H3zM14 3h7v4h-7zM14 11h7v10h-7zM3 14h7v7H3z" />,
+  inbox: <><path d="M3 13l3-8h12l3 8v6H3z" /><path d="M3 13h5l1.5 2.5h5L16 13h5" /></>,
+  data: <><ellipse cx="12" cy="5.5" rx="8" ry="2.5" /><path d="M4 5.5v13c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-13M4 12c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5" /></>,
+  agents: <><rect x="4" y="7" width="16" height="12" rx="3" /><path d="M12 3v4M9 12.5v.01M15 12.5v.01M9.5 16h5" /></>,
+};
+
+/** Workspace navigation with the launch countdown (issues are reached via the bell). */
+function Sidebar({ location }: { location: string }) {
+  const links: [string, string, string][] = [
+    ["#overview", "overview", "Overview"],
+    ["#inbox", "inbox", "Inbox"],
+    ["#data", "data", "Data"],
+    ["#agents", "agents", "Agents"],
   ];
+  const current = location === "#issues" ? "#overview" : location;
   return (
-    <aside className="sidebar">
-      <a className="brand" href="#overview" aria-label="Linewatch home"><span className="brand-mark">L</span><span>linewatch<span className="brand-period">.</span></span></a>
-      <div className="side-caption">YOUR WORKSPACE</div>
-      <div className="workspace-switch"><span className="workspace-icon">S</span><span><strong>Soony Interactive</strong><small>Grand Heist 6</small></span><span className="down-caret">⌄</span></div>
-      <div className="side-caption nav-caption">LAUNCH CONTROL</div>
-      <nav className="main-nav" aria-label="Main navigation">
+    <aside className="sidebar side">
+      <a className="side-brand" href="#overview">Linewatch</a>
+      <p className="side-project">Soony · Grand Heist 6</p>
+      <nav className="side-nav" aria-label="Main navigation">
         {links.map(([href, icon, label]) => (
-          <a key={href} className={`nav-link${location === href ? " selected" : ""}`} href={href} aria-label={label} aria-current={location === href ? (href === "#agents" || href === "#inbox" || href === "#data" ? "page" : "location") : undefined}>
-            <Icon name={icon} /> {label}
-            {href === "#notifications" && openCount !== null && <span className="nav-count">{openCount}</span>}
+          <a key={href} className={`side-link${current === href ? " active" : ""}`} href={href} aria-current={current === href ? "page" : undefined}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{NAV_ICONS[icon]}</svg>
+            <span>{label}</span>
           </a>
         ))}
       </nav>
-      <div className="sidebar-bottom">
-        <div className="profile-row"><div className="profile-avatar">S</div><div><strong>Launch team</strong><small>Soony workspace</small></div><span className="profile-menu">•••</span></div>
+      <div className="side-foot">
+        <span>Launch Sun 22 Nov, 20:00</span>
+        <strong>{timeToLaunch()}</strong>
       </div>
     </aside>
   );
 }
 
-/** Render the launch overview: data import and the agents' notifications. */
-function Dashboard({ notifications, setNotifications }: { notifications: Notification[] | null; setNotifications: (items: Notification[]) => void }) {
-  const [loading, setLoading] = useState(notifications === null);
+/** Top bar of the overview and issues pages, with the notification bell. */
+function TopBar({ title, notifications }: { title: string; notifications: Notification[] }) {
+  return <header className="topbar"><div className="ov-crumb">{title}</div><div className="topbar-right"><NotificationBell notifications={notifications} /><span className="top-divider" /><span className="top-avatar">S</span></div></header>;
+}
+
+/** Launch overview: countdown, data sync and readiness; issues live on their own page. */
+function Dashboard({ notifications }: { notifications: Notification[] }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | Severity>("all");
-  const [showResolved, setShowResolved] = useState(false);
-  const [query, setQuery] = useState("");
-
-  const refresh = useCallback(async () => {
-    setNotifications(await listNotifications());
-  }, [setNotifications]);
-
-  useEffect(() => {
-    refresh()
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load notifications."))
-      .finally(() => setLoading(false));
-    // Agents post findings in the background, so keep the list current.
-    const timer = window.setInterval(() => { refresh().catch(() => undefined); }, REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
-
-  useEffect(() => {
-    if (loading) return;
-    document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
-  }, [loading]);
-
-  const visible = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return [...(notifications ?? [])]
-      .filter((n) => showResolved || isOpen(n))
-      .filter((n) => filter === "all" || severityOf(n) === filter)
-      .filter((n) => !normalized || [n.data.title, n.data.details, n.data.kind, n.attr, n.erp_val, n.customer_val, ...(n.data.refs ?? [])].join(" ").toLowerCase().includes(normalized))
-      .sort((a, b) => severityOrder.indexOf(severityOf(a)) - severityOrder.indexOf(severityOf(b)) || b.seen_at.localeCompare(a.seen_at));
-  }, [notifications, filter, query, showResolved]);
-
-  const counts = useMemo(() => {
-    const initial: Record<Severity, number> = { critical: 0, warning: 0, info: 0 };
-    for (const n of notifications ?? []) if (isOpen(n)) initial[severityOf(n)] += 1;
-    return initial;
-  }, [notifications]);
+  const open = notifications.filter(isOpen);
+  const critical = open.filter((n) => severityOf(n) === "critical").length;
 
   async function handleSync() {
     setBusy(true);
@@ -160,24 +165,9 @@ function Dashboard({ notifications, setNotifications }: { notifications: Notific
     }
   }
 
-  async function setStatus(notification: Notification, status: string) {
-    setError(null);
-    try {
-      await updateNotificationData(notification.id, { ...notification.data, status });
-      await refresh();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not update the notification.");
-    }
-  }
-
-  if (loading) return <div className="loading-screen"><div className="loading-mark">L</div><p>Getting the launch picture…</p></div>;
-  if (notifications === null) return <div className="load-error"><div className="brand-mark">L</div><h1>We can’t reach Linewatch yet.</h1><p>{error ?? "Start the backend, then reload this page."}</p><button className="button button-primary" onClick={() => { setLoading(true); setError(null); refresh().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load notifications.")).finally(() => setLoading(false)); }}>Try again</button></div>;
-
-  const openTotal = counts.critical + counts.warning + counts.info;
-
   return (
     <main id="overview" className="main-content">
-      <header className="topbar"><div className="mobile-brand"><span className="brand-mark">L</span> linewatch<span className="brand-period">.</span></div><div className="ov-crumb">Overview</div><div className="topbar-right"><NotificationBell notifications={notifications} /><span className="top-divider" /><span className="top-avatar">S</span></div></header>
+      <TopBar title="Overview" notifications={notifications} />
       <div className="content-wrap">
         <section className="ov-head" aria-label="Launch">
           <div>
@@ -190,16 +180,110 @@ function Dashboard({ notifications, setNotifications }: { notifications: Notific
         {error && <div className="message message-error" role="alert"><Icon name="alert" /><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss">×</button></div>}
         {notice && <div className="message message-success" role="status"><Icon name="check" /><span>{notice}</span><button onClick={() => setNotice(null)} aria-label="Dismiss">×</button></div>}
 
+        <a className={`ov-issues${critical ? " ov-issues-critical" : ""}`} href="#issues">
+          <strong>{open.length} open issues</strong>
+          <span>{critical ? `${critical} critical · ` : ""}what the agents found, with proposed solutions</span>
+          <em>View issues →</em>
+        </a>
+
         <ReadinessPanel notifications={notifications} />
-
-        <section className="section-block priority-section" id="notifications" aria-labelledby="notifications-heading"><div className="section-heading"><div><span className="section-number">01</span><div><h2 id="notifications-heading">What needs a human now</h2><p>Mismatches the agents found between the ERP and the paper or supplier side. Check the sources before acting.</p></div></div><span className="priority-total">{openTotal} <small>open</small></span></div>
-          <div className="priority-toolbar"><div className="filter-tabs" role="group" aria-label="Filter notifications">{(["all", ...severityOrder] as const).map((item) => <button key={item} className={`filter-tab ${filter === item ? "filter-active" : ""}`} onClick={() => setFilter(item)}>{item === "all" ? "All" : item}<span>{item === "all" ? openTotal : counts[item]}</span></button>)}<button className={`filter-tab ${showResolved ? "filter-active" : ""}`} onClick={() => setShowResolved((value) => !value)}>Resolved</button></div><label className="search-field"><Icon name="search" /><input aria-label="Search notifications" placeholder="Search a part, file or issue" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
-          <div className="nc-list">{visible.length ? visible.map((n) => <NotificationCard key={n.id} notification={n} onStatus={setStatus} onChanged={() => { refresh().catch(() => undefined); }} />) : <div className="empty-state"><div className="empty-symbol"><Icon name="check" /></div><strong>{notifications.length ? "No matching notifications" : "No notifications yet"}</strong><p>{notifications.length ? "Try another filter or search term." : "Ask an agent in the Agents tab to check the data; its findings appear here."}</p></div>}</div>
-        </section>
-
-        <footer className="page-footer"><span><b>LINEWATCH</b> <i>·</i> SOONY LAUNCH CONTROL</span><span>Evidence first. Human decisions always.</span></footer>
       </div>
     </main>
+  );
+}
+
+/** Issues page: everything the agents found, with solutions, and the risk check. */
+function IssuesPage({ notifications, refresh, focus }: { notifications: Notification[]; refresh: () => Promise<void>; focus: string | null }) {
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | Severity>("all");
+  const [showResolved, setShowResolved] = useState(false);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (focus) document.getElementById(focus)?.scrollIntoView({ block: "start" });
+  }, [focus]);
+
+  const visible = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return [...notifications]
+      .filter((n) => showResolved || isOpen(n) || `n-${n.id}` === focus)
+      .filter((n) => filter === "all" || severityOf(n) === filter)
+      .filter((n) => !normalized || [n.data.title, n.data.details, n.data.kind, n.attr, n.erp_val, n.customer_val, ...(n.data.refs ?? [])].join(" ").toLowerCase().includes(normalized))
+      .sort((a, b) => severityOrder.indexOf(severityOf(a)) - severityOrder.indexOf(severityOf(b)) || b.seen_at.localeCompare(a.seen_at));
+  }, [notifications, filter, query, showResolved, focus]);
+
+  const counts = useMemo(() => {
+    const initial: Record<Severity, number> = { critical: 0, warning: 0, info: 0 };
+    for (const n of notifications) if (isOpen(n)) initial[severityOf(n)] += 1;
+    return initial;
+  }, [notifications]);
+  const openTotal = counts.critical + counts.warning + counts.info;
+
+  async function setStatus(notification: Notification, status: string) {
+    setError(null);
+    try {
+      await updateNotificationData(notification.id, { ...notification.data, status });
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not update the issue.");
+    }
+  }
+
+  return (
+    <main id="issues" className="main-content">
+      <TopBar title="Issues" notifications={notifications} />
+      <div className="content-wrap">
+        <section className="ov-head" aria-label="Issues">
+          <div>
+            <h1>Issues</h1>
+            <p>Where the ERP disagrees with paperwork, suppliers or the launch plan, with proposed solutions.</p>
+          </div>
+          <RiskCheck onFinished={refresh} />
+        </section>
+        {error && <div className="message message-error" role="alert"><Icon name="alert" /><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss">×</button></div>}
+        <section className="section-block priority-section" aria-label="Issue list">
+          <div className="priority-toolbar"><div className="filter-tabs" role="group" aria-label="Filter issues">{(["all", ...severityOrder] as const).map((item) => <button key={item} className={`filter-tab ${filter === item ? "filter-active" : ""}`} onClick={() => setFilter(item)}>{item === "all" ? "All" : item}<span>{item === "all" ? openTotal : counts[item]}</span></button>)}<button className={`filter-tab ${showResolved ? "filter-active" : ""}`} onClick={() => setShowResolved((value) => !value)}>Resolved</button></div><label className="search-field"><Icon name="search" /><input aria-label="Search issues" placeholder="Search a part, file or issue" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
+          <div className="nc-list">{visible.length ? visible.map((n) => <NotificationCard key={n.id} notification={n} onStatus={setStatus} onChanged={() => void refresh()} />) : <p className="list-empty">{notifications.length ? "Nothing matches this filter." : "No issues yet. Run the risk check to let an agent go through the data."}</p>}</div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+/** "Run risk check" with the status of the latest run (it takes a few minutes). */
+function RiskCheck({ onFinished }: { onFinished: () => Promise<void> }) {
+  const [run, setRun] = useState<SkillRun | null>(null);
+  const [error, setError] = useState("");
+  const running = run?.status === "running";
+
+  useEffect(() => {
+    let previous: string | undefined;
+    const poll = () => getSkillRun("risk-check").then((value) => {
+      if (previous === "running" && value.status !== "running") void onFinished();
+      previous = value.status;
+      setRun(value);
+    }).catch(() => undefined);
+    void poll();
+    const timer = window.setInterval(poll, 10 * 1000);
+    return () => window.clearInterval(timer);
+  }, [onFinished]);
+
+  async function start() {
+    setError("");
+    try { setRun(await startSkillRun("risk-check")); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not start the risk check."); }
+  }
+
+  const when = (value: string | null | undefined) => (value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
+  const status = running
+    ? `Running since ${when(run?.started_at)} · takes a few minutes`
+    : run?.status === "done" ? `Last run ${when(run.finished_at)}`
+    : run?.status === "failed" ? `Last run failed: ${run.error ?? ""}`
+    : "Not run yet";
+  return (
+    <div className="risk-run">
+      <button type="button" className="ov-sync" onClick={() => void start()} disabled={running}>{running ? "Checking…" : "Run risk check"}</button>
+      <small className={run?.status === "failed" || error ? "risk-run-bad" : ""} title={run?.summary || undefined}>{error || status}</small>
+    </div>
   );
 }
 
@@ -232,7 +316,7 @@ function NotificationBell({ notifications }: { notifications: Notification[] }) 
             <ul className="bell-list">
               {openItems.slice(0, 6).map((n) => (
                 <li key={n.id}>
-                  <a href="#notifications" onClick={() => setOpen(false)}>
+                  <a href={`#n-${n.id}`} onClick={() => setOpen(false)}>
                     <i className={`bell-dot severity-${severityClass[severityOf(n)]}`} />
                     <span><strong>{n.data.title || `${n.attr} mismatch`}</strong><small>{severityOf(n)} · {localTime(n.seen_at)}</small></span>
                   </a>
@@ -240,7 +324,7 @@ function NotificationBell({ notifications }: { notifications: Notification[] }) 
               ))}
             </ul>
           ) : <p className="bell-empty">Nothing open right now.</p>}
-          <a className="bell-all" href="#notifications" onClick={() => setOpen(false)}>View all notifications →</a>
+          <a className="bell-all" href="#issues" onClick={() => setOpen(false)}>View all issues →</a>
         </div>
       )}
     </div>

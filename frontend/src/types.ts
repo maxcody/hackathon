@@ -224,3 +224,13 @@ export interface Lookups {
   documents: Record<string, string[]>;
   open_orders: string[];
 }
+
+/** The latest run of an agent skill, e.g. the risk check (`/skills/{name}`). */
+export interface SkillRun {
+  skill: string;
+  status: "never" | "running" | "done" | "failed";
+  started_at: string | null;
+  finished_at: string | null;
+  summary: string;
+  error: string | null;
+}

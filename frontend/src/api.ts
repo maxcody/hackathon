@@ -9,6 +9,7 @@ import type {
   NotificationData,
   Readiness,
   SheetImportSummary,
+  SkillRun,
   SyncResult,
   WorkspaceAgent,
 } from "./types";
@@ -75,6 +76,16 @@ export function getLookups(): Promise<Lookups> {
 /** Rows and columns of one dataset. */
 export function getDataset(key: string): Promise<Dataset> {
   return request(`/dataset/${encodeURIComponent(key)}`);
+}
+
+/** Status of the latest run of an agent skill. */
+export function getSkillRun(skill: string): Promise<SkillRun> {
+  return request(`/skills/${encodeURIComponent(skill)}`);
+}
+
+/** Start an agent skill in the background (it runs for a few minutes). */
+export function startSkillRun(skill: string): Promise<SkillRun> {
+  return request(`/skills/${encodeURIComponent(skill)}/run`, { method: "POST" });
 }
 
 /** Launch readiness per edition and part coverage, as the ERP files state it. */

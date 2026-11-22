@@ -171,3 +171,26 @@
 .ov-sync:disabled{color:#9aa39c;cursor:default}
 .ov-head+.message,.ov-head~.ready{margin-top:20px}
 @media(max-width:600px){.ov-head{flex-direction:column;align-items:flex-start}}
+/* Sidebar (Sidebar in App.tsx) */
+.side{width:208px;padding:20px 12px 16px;display:flex;flex-direction:column}
+.side-brand{padding:0 10px;color:#f1f5ed;font:700 17px Manrope,sans-serif;letter-spacing:-.2px;text-decoration:none}
+.side-project{margin:3px 0 22px;padding:0 10px;color:#93a69a;font-size:12px}
+.side-nav{display:grid;gap:2px}
+.side-link{display:flex;align-items:center;gap:10px;min-height:36px;padding:0 10px;border-radius:8px;color:#bdc9c0;font-size:13.5px;text-decoration:none;transition:background .15s,color .15s}
+.side-link:hover{background:#2a3e32;color:#fff}
+.side-link.active{background:#344d3d;color:#fff;font-weight:600}
+.side-link svg{flex:none;opacity:.9}
+.side-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid #2f4538;color:#93a69a;font-size:11.5px}
+.side-foot strong{display:block;margin-top:2px;color:#e8c98f;font-size:13.5px;font-weight:600}
+.side~.main-content{margin-left:208px}
+@media(max-width:600px){.side{width:56px;padding:14px 8px}.side-brand,.side-project,.side-link span,.side-foot{display:none}.side-link{justify-content:center;padding:0}.side~.main-content{margin-left:56px}}
+/* Overview link to the issues page, and the risk check control */
+.ov-issues{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-top:20px;padding:14px 18px;border:1px solid #e7eae4;border-radius:12px;background:#fff;color:#1f2d28;text-decoration:none}
+.ov-issues strong{font:650 16px Manrope,sans-serif}
+.ov-issues span{color:#5f6b63;font-size:13.5px}
+.ov-issues em{margin-left:auto;color:#2f6b45;font-style:normal;font-weight:600;font-size:13.5px}
+.ov-issues:hover{border-color:#cfdcc8;background:#fafcf8}
+.ov-issues-critical{border-left:3px solid #bb4d42}
+.risk-run{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.risk-run small{max-width:320px;color:#8a948d;font-size:12px;text-align:right}
+.risk-run .risk-run-bad{color:#b84d42}

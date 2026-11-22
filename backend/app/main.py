@@ -21,6 +21,7 @@ from app.routers import (
     inbox,
     notifications,
     readiness,
+    skills,
     solutions,
 )
 
@@ -55,6 +56,7 @@ app.include_router(solutions.router)
 app.include_router(readiness.router)
 app.include_router(inbox.router)
 app.include_router(dataset.router)
+app.include_router(skills.router)
 app.include_router(agent_workspace.router)
 
 
