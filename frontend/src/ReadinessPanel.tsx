@@ -11,7 +11,9 @@ import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Table, proportional } from "@astryxdesign/core/Table";
 import type { TableColumn } from "@astryxdesign/core/Table";
 import { Grid } from "@astryxdesign/core/Grid";
+import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { getReadiness } from "./api";
+import { CoverageChart } from "./CoverageChart";
 import type { Notification, PartCoverage, Readiness } from "./types";
 
 const number = new Intl.NumberFormat("en-US");
@@ -244,7 +246,11 @@ export function ReadinessPanel({ notifications }: { notifications: Notification[
           })}
         </Grid>
 
-        <Table data={rows} columns={columns} idKey="component_id" density="compact" hasHover dividers="rows" />
+        <CoverageChart parts={data.parts} />
+
+        <Collapsible trigger={<Text weight="medium">Part details</Text>} defaultIsOpen={false}>
+          <Table data={rows} columns={columns} idKey="component_id" density="compact" hasHover dividers="rows" />
+        </Collapsible>
 
         <Text type="supporting" color="secondary">
           Balance = ERP stock + receipts since the snapshot − what is still to pack. Shipment quantities are

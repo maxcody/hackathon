@@ -50,3 +50,48 @@
     transform: none;
   }
 }
+
+/* Needed vs available chart */
+:root {
+  --chart-track: color-mix(in srgb, currentColor 16%, transparent);
+}
+.coverage {
+  display: grid;
+  gap: 12px;
+}
+.coverage-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 240px) 1fr minmax(120px, 160px) 56px;
+  gap: 16px;
+  align-items: center;
+}
+.coverage-row > :nth-child(3),
+.coverage-row > :nth-child(4) {
+  text-align: end;
+}
+.coverage-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--chart-track);
+  overflow: hidden;
+}
+.coverage-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 300ms ease-out;
+}
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+@media (max-width: 720px) {
+  .coverage-row {
+    grid-template-columns: 1fr auto;
+  }
+  .coverage-track {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}
