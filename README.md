@@ -48,7 +48,6 @@ Open the Vite URL printed in the terminal (normally http://127.0.0.1:5173/). Vit
 
 API docs: http://localhost:8000/docs.
 
-Optionally, `npm run build` in `frontend/` writes a built copy of the dashboard to `backend/app/static/react/` (git-ignored). When that folder exists, FastAPI also serves the dashboard at http://localhost:8000/. Without it, `/` returns 404 and the dashboard runs only on the Vite server.
 
 ## Agents tab
 
