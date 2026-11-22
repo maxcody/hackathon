@@ -20,6 +20,8 @@ from app.routers import (
     readiness,
     skills,
     solutions,
+    sourcing,
+    threads,
 )
 
 # Trust the OS certificate store, so portal calls work behind TLS-inspecting proxies
@@ -46,12 +48,14 @@ app.add_middleware(
 )
 app.include_router(imported.router)
 app.include_router(imports.router)
+app.include_router(threads.router)  # before notifications: /notifications/threads
 app.include_router(notifications.router)
 app.include_router(solutions.router)
 app.include_router(readiness.router)
 app.include_router(inbox.router)
 app.include_router(dataset.router)
 app.include_router(skills.router)
+app.include_router(sourcing.router)
 app.include_router(agent_workspace.router)
 
 

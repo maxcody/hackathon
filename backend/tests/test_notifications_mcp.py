@@ -145,3 +145,60 @@ async def test_headline_and_facts_are_kept_when_a_later_report_omits_them(
         headline="Art books arrive a day late",
     )
     assert backend[0]["data"]["headline"] == "Art books arrive a day late"
+
+
+async def test_supplier_states_show_in_the_listing(backend: list[dict]) -> None:
+    await tool.report_notification(
+        kind="stock_shortage", subject="CMP-1", attr="qty", title="Short"
+    )
+    await tool.set_supplier_state(
+        "stock_shortage:CMP-1", "SUP-1", "Alpha", "asked", note="first ask"
+    )
+    await tool.set_supplier_state(
+        "stock_shortage:CMP-1", "SUP-1", "Alpha", "declined", note="no capacity"
+    )
+    await tool.set_supplier_state("stock_shortage:CMP-1", "SUP-2", "Beta", "asked")
+    suppliers = backend[0]["data"]["suppliers"]
+    assert [(s["name"], s["state"]) for s in suppliers] == [
+        ("Alpha", "declined"),
+        ("Beta", "asked"),
+    ]
+    listing = await tool.list_notifications()
+    assert "suppliers: Alpha declined, Beta asked" in listing
+
+
+def test_backup_solutions_carry_supplier_and_stage() -> None:
+    plan_b = tool.Solution(
+        kind="email",
+        title="Ask Beta",
+        description="d",
+        supplier_id="SUP-2",
+        stage="if_declined",
+    )
+    merged = tool.merge_solutions([], [plan_b])
+    assert merged[0]["stage"] == "if_declined" and merged[0]["supplier_id"] == "SUP-2"
+
+
+def test_sources_are_listed_one_per_line() -> None:
+    text = tool.format_sources(
+        [
+            {
+                "role": "second_source",
+                "supplier_id": "SUP-2",
+                "name": "Beta",
+                "contact_email": "b@sup.test",
+                "preferred_language": "en",
+                "qualification_status": "conditional",
+                "share": 0.3,
+                "unit_price": 10.2,
+                "currency": "USD",
+                "lead_time_days": 28,
+                "moq": None,
+                "needs_approval": True,
+                "note": "",
+                "notices": ["suppliers/SUP-2_Beta/notices/offer.pdf"],
+            }
+        ]
+    )
+    assert "share 30%" in text and "NEEDS PP-07 APPROVAL" in text
+    assert "notices: suppliers/SUP-2_Beta/notices/offer.pdf" in text

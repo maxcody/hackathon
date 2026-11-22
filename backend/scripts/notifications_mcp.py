@@ -100,6 +100,13 @@ class Solution(BaseModel):
     email: SolutionEmail | None = Field(
         None, description="Required when kind is email or claim sent by email"
     )
+    supplier_id: str = Field("", description="Supplier it goes to, e.g. SUP-0011")
+    stage: Literal["now", "parallel", "if_declined"] = Field(
+        "now",
+        description="now: do it now; parallel: ask this backup supplier at the same "
+        "time as the primary (critical, little time); if_declined: plan B, only "
+        "if the supplier asked first cannot deliver",
+    )
 
 
 def merge_solutions(old: list[dict], new: list[Solution]) -> list[dict]:
@@ -256,6 +263,8 @@ async def record_email_analysis(
     risks: str = "",
     next_step: str = "",
     notification_keys: list[str] | None = None,
+    outcome: Literal["confirmed", "partial", "declined", "question", "other"] = "other",
+    supplier_id: str = "",
 ) -> str:
     """Save your analysis of a received email; the dashboard inbox shows it.
 
@@ -268,6 +277,9 @@ async def record_email_analysis(
         risks: What in the email threatens the launch, or contradicts our data.
         next_step: The one action a buyer should take now.
         notification_keys: Keys of the notifications this email relates to.
+        outcome: What the supplier answered: confirmed (all we asked), partial
+            (only part), declined (cannot), question (asks us something), other.
+        supplier_id: The sender's supplier id from ``profile.csv``.
 
     Returns:
         Confirmation that the analysis was saved.
@@ -282,6 +294,8 @@ async def record_email_analysis(
         "risks": risks,
         "next_step": next_step,
         "notification_keys": notification_keys or [],
+        "outcome": outcome,
+        "supplier_id": supplier_id,
     }
     async with make_client() as client:
         response = await client.post("/inbox/analyses", json=body)
@@ -312,10 +326,119 @@ async def list_notifications(status: str = "", kind: str = "") -> str:
     lines = [
         f"#{n['id']} [{n['data'].get('status', '')}] {n['data'].get('key', '')} "
         f"{n['attr']}: ERP {n['erp_val']} vs customer {n['customer_val']} "
-        f"- {n['data'].get('title', '')}"
+        f"- {n['data'].get('title', '')}{supplier_line(n['data'])}"
         for n in rows
     ]
     return f"{len(rows)} notifications\n" + "\n".join(lines)
+
+
+def supplier_line(data: dict) -> str:
+    """The suppliers already contacted for an issue, e.g. " | suppliers: X declined"."""
+    states = [
+        f"{s.get('name') or s['supplier_id']} {s['state']}"
+        + (f" {s['quantity']}" if s.get("quantity") else "")
+        for s in data.get("suppliers", [])
+    ]
+    return f" | suppliers: {', '.join(states)}" if states else ""
+
+
+def set_supplier(data: dict, entry: dict) -> dict:
+    """Return ``data`` with one supplier's entry in ``data.suppliers`` replaced."""
+    others = [
+        s for s in data.get("suppliers", []) if s["supplier_id"] != entry["supplier_id"]
+    ]
+    return {**data, "suppliers": [*others, entry]}
+
+
+@server.tool()
+async def set_supplier_state(
+    key: str,
+    supplier_id: str,
+    name: str,
+    state: Literal["asked", "confirmed", "partial", "declined", "no_answer"],
+    quantity: str = "",
+    note: str = "",
+) -> str:
+    """Record where a supplier stands on an issue (shown as a chain on the card).
+
+    Call it when a supplier is asked, and when it confirms, delivers only part,
+    declines or does not answer in time. Never propose a declined supplier again.
+
+    Args:
+        key: The notification's key.
+        supplier_id: e.g. ``SUP-0010``.
+        name: Supplier name, e.g. ``Hwaseong Memory``.
+        state: asked, confirmed, partial, declined or no_answer.
+        quantity: What it confirmed or can deliver, e.g. ``4,000 by 18:00``.
+        note: One short sentence, e.g. "capacity booked until December".
+
+    Returns:
+        A confirmation, or a message if no notification has that key.
+    """
+    entry = {
+        "supplier_id": supplier_id,
+        "name": name,
+        "state": state,
+        "quantity": quantity,
+        "note": note,
+        "at": datetime.now(UTC).isoformat(),
+    }
+    async with make_client() as client:
+        existing = await find_by_key(client, key)
+        if existing is None:
+            return f"No notification with key {key}"
+        data = set_supplier(existing["data"], entry)
+        response = await client.patch(
+            f"/notifications/{existing['id']}", json={"data": data}
+        )
+        response.raise_for_status()
+    return f"#{existing['id']}: {name} is {state}"
+
+
+def format_sources(sources: list[dict]) -> str:
+    """One line per supplier option for the agent."""
+    lines = []
+    for s in sources:
+        facts = [
+            f"share {s['share']:.0%}" if s.get("share") is not None else "",
+            f"{s['unit_price']} {s['currency']}"
+            if s.get("unit_price") is not None
+            else "",
+            f"lead {s['lead_time_days']} d"
+            if s.get("lead_time_days") is not None
+            else "",
+            f"MOQ {s['moq']}" if s.get("moq") is not None else "",
+            "NEEDS PP-07 APPROVAL" if s["needs_approval"] else "",
+        ]
+        lines.append(
+            f"{s['role']}: {s['supplier_id']} {s['name']} <{s['contact_email']}> "
+            f"lang {s['preferred_language']}, {s['qualification_status']}; "
+            + ", ".join(f for f in facts if f)
+            + (f"; note: {s['note']}" if s.get("note") else "")
+            + (f"; notices: {', '.join(s['notices'])}" if s.get("notices") else "")
+        )
+    return "\n".join(lines)
+
+
+@server.tool()
+async def sourcing_options(component_id: str) -> str:
+    """Who can supply a part, best first: primary, second sources, same category.
+
+    Use it before proposing solutions for a shortage, and when a supplier
+    declines, to find the next one to ask.
+
+    Args:
+        component_id: e.g. ``CMP-GAM-001``.
+
+    Returns:
+        One line per supplier: role, contact, share, price, lead time, MOQ,
+        whether PP-07 approval is needed, and its notices (offers, price lists).
+    """
+    async with make_client() as client:
+        response = await client.get(f"/sourcing/{component_id}")
+        response.raise_for_status()
+    sources = response.json()
+    return format_sources(sources) if sources else f"No supplier lists {component_id}."
 
 
 @server.tool()
