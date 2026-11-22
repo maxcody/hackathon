@@ -80,3 +80,25 @@
 .compose-hint{color:#8a8a86;font-size:12.5px}
 .compose-error{color:#b84d42;font-size:12.5px}
 @media(max-width:600px){.compose-fields,.compose-scroll{padding-left:14px;padding-right:14px}.compose-field>span{width:48px}}
+/* Readable notification cards with compact solutions (overrides the tiny base scale) */
+.risk-content{padding:16px 6px 16px 0}
+.risk-content h3{margin:8px 0 6px;font:650 15px/1.35 Manrope,sans-serif}
+.risk-detail{font-size:13px;line-height:1.55;color:#5f6b63}
+.risk-detail strong{color:#3f4a44}
+.severity-badge{font-size:10px}
+.risk-source-label{font-size:11px}
+.risk-sources{margin-top:8px;font-size:12px;color:#8c978e}
+.risk-sources summary{cursor:pointer;width:fit-content}
+.risk-sources summary:hover{color:#3f4a44}
+.risk-evidence{font-size:11px}
+.risk-next>span,.risk-next small{font-size:10px}
+.risk-next p{font-size:13px}
+.solutions{margin-top:14px;padding-top:12px}
+.solutions h4{margin:0 0 8px;font:600 13px "DM Sans",sans-serif;color:#3f4a44;text-transform:none;letter-spacing:0}
+.solution{padding:10px 12px;gap:12px;background:#fff}
+.solution-kind{padding:0 7px;font-size:9.5px;line-height:17px}
+.solution-main strong{margin:5px 0 2px;font-size:13.5px;line-height:1.35}
+.solution-main p{margin:0 0 4px;font-size:12.5px;line-height:1.5;color:#5f6b63;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.solution-main small{font-size:11.5px;line-height:1.45}
+.solution-approval{font-weight:500!important}
+.solution-action,.solution-sent{padding:6px 12px;font-size:12px}
