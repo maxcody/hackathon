@@ -59,6 +59,18 @@ async def test_approval_is_required_when_named(client, sent) -> None:
     assert accepted.json()["data"]["solutions"][0]["approved_by"] == "Maren Vogt"
 
 
+async def test_same_email_elsewhere_is_marked_sent(client, sent) -> None:
+    first = (await client.post("/notifications", json=notification())).json()
+    other = notification()
+    other["data"]["key"] = "supplier_notice:SUP-0028:SHUTDOWN"
+    second = (await client.post("/notifications", json=other)).json()
+    await client.post(f"/notifications/{first['id']}/solutions/0/send", json=EMAIL)
+    twin = (await client.get(f"/notifications/{second['id']}")).json()
+    assert twin["data"]["solutions"][0]["status"] == "sent"
+    assert twin["data"]["solutions"][0]["sent_with"] == first["id"]
+    assert len(sent) == 1
+
+
 async def test_unknown_solution_is_404(client, sent) -> None:
     note = (await client.post("/notifications", json=notification())).json()
     response = await client.post(

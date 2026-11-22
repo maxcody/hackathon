@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 
 from app.db import SessionDep
@@ -22,6 +23,31 @@ class SolutionEmailSend(BaseModel):
     subject: str
     body: str
     approved_by: str | None = None
+
+
+async def _mark_same_email_sent(
+    session: SessionDep, sent_from: int, email: dict, record: dict
+) -> None:
+    """Mark the same draft on other notifications as sent, so nobody sends it twice.
+
+    Agents may attach one email (same recipients and subject) to several related
+    notifications; after one is sent, the others show it as sent too.
+    """
+    same = (sorted(email.get("to", [])), email.get("subject"))
+    for other in (await session.scalars(select(Notification))).all():
+        changed = False
+        solutions = list(other.data.get("solutions", []))
+        for i, candidate in enumerate(solutions):
+            draft = candidate.get("email") or {}
+            if (
+                other.id != sent_from
+                and candidate.get("status") != "sent"
+                and (sorted(draft.get("to", [])), draft.get("subject")) == same
+            ):
+                solutions[i] = {**candidate, **record, "sent_with": sent_from}
+                changed = True
+        if changed:
+            other.data = {**other.data, "solutions": solutions}
 
 
 @router.post("/{notification_id}/solutions/{index}/send")
@@ -50,15 +76,16 @@ async def send_solution_email(
         )
     except MailError as error:
         raise HTTPException(502, f"Email not sent: {error}") from error
-    solutions[index] = {
-        **solution,
+    record = {
         "status": "sent",
         "sent_at": datetime.now(UTC).isoformat(),
         "message_id": message_id,
         "approved_by": approver or None,
         "sent_email": email.model_dump(exclude={"approved_by"}),
     }
+    solutions[index] = {**solution, **record}
     notification.data = {**notification.data, "solutions": solutions}
+    await _mark_same_email_sent(session, notification.id, solution["email"], record)
     await session.commit()
     await session.refresh(notification)
     return NotificationRead.model_validate(notification)

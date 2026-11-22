@@ -42,11 +42,41 @@
 .solution-action{border:0;background:#1c1c1a;color:#fff}
 .solution-action:hover{background:#000}
 .solution-sent{border:1px solid #cfe0c8;background:#eef6ea;color:#2f5a3a}
-.solution-dialog{width:min(100% - 24px,700px);max-height:calc(100dvh - 40px);padding:18px;border:0;border-radius:18px;background:#fafaf9;box-shadow:0 24px 60px rgba(0,0,0,.25)}
-.solution-dialog::backdrop{background:rgba(20,24,22,.45)}
-.solution-dialog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
-.solution-dialog-head span{display:block;font-size:12px;color:var(--muted)}
-.solution-dialog-head strong{display:block;font-size:16px;color:var(--ink)}
-.solution-dialog-head button{width:30px;height:30px;border:0;border-radius:50%;background:#ececea;font-size:18px;line-height:1;cursor:pointer}
-.solution-dialog .mail{max-width:none;margin:0}
 @media(max-width:600px){.solution{flex-direction:column}.solution-action,.solution-sent{align-self:flex-start}}
+/* Compose window in the solution popup (ComposeWindow) */
+.solution-dialog{width:min(100% - 24px,760px);max-height:min(88dvh,860px);padding:0;border:0;border-radius:14px;background:#fff;box-shadow:0 30px 80px rgba(0,0,0,.28);overflow:hidden}
+.solution-dialog[open]{display:flex}
+.solution-dialog::backdrop{background:rgba(20,24,22,.42)}
+.compose{display:flex;flex-direction:column;width:100%;min-height:0;font:14px/1.5 "DM Sans",sans-serif;color:#1c1c1a}
+.compose-bar{display:flex;align-items:center;gap:12px;padding:12px 14px 12px 20px;background:#1e3028;color:#eef3ea}
+.compose-bar div{flex:1;min-width:0}
+.compose-bar small{display:block;font-size:11.5px;color:#a9bcae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compose-bar strong{display:block;font-size:14.5px;font-weight:600}
+.compose-status{padding:2px 10px;border-radius:999px;background:#c5eb8c;color:#1e3028;font-size:12px;font-weight:600;white-space:nowrap}
+.compose-close{flex:none;width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:#eef3ea;font-size:20px;line-height:1;cursor:pointer}
+.compose-close:hover{background:rgba(255,255,255,.12)}
+.compose-fields{padding:0 20px}
+.compose-row{display:flex;align-items:center;border-bottom:1px solid #ededeb}
+.compose-field{display:flex;flex:1;align-items:center;gap:12px;min-width:0;margin:0;padding:9px 0}
+.compose-field>span{flex:none;width:56px;color:#8a8a86;font-size:13px}
+.compose-field input,.compose-field em{flex:1;min-width:0;border:0;padding:0;background:transparent;color:#1c1c1a;font:inherit;font-style:normal;outline:none}
+.compose-subject .compose-field input,.compose-subject .compose-field em{font-weight:600}
+.compose-cc{border:0;background:none;color:#8a8a86;font:13px "DM Sans",sans-serif;cursor:pointer}
+.compose-cc:hover{color:#1c1c1a}
+.compose-scroll{flex:1;min-height:180px;overflow-y:auto;padding:14px 20px 18px}
+.compose-body{display:block;width:100%;min-height:160px;margin:0;padding:0;border:0;background:transparent;color:#1c1c1a;font:14px/1.65 "DM Sans",sans-serif;white-space:pre-wrap;overflow:hidden;resize:none;outline:none}
+.compose-translation{margin-top:14px;padding-top:10px;border-top:1px dashed #e3e3e0}
+.compose-translation button{padding:0;border:0;background:none;color:#487553;font:600 12.5px "DM Sans",sans-serif;cursor:pointer}
+.compose-translation p{margin:8px 0 0;color:#55554f;font-size:13.5px;white-space:pre-wrap}
+.compose-approval{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:10px 20px;border-top:1px solid #ededeb;background:#fbf8f2;font-size:13px;color:#6b5a3a}
+.compose-approval>span{flex-basis:100%}
+.compose-approval strong{color:#4d3a17}
+.compose-approval label{display:flex;align-items:center;gap:6px;color:#1c1c1a;font-weight:600}
+.compose-approval input:not([type=checkbox]){flex:1;min-width:150px;max-width:260px;padding:5px 9px;border:1px solid #e3dccd;border-radius:7px;background:#fff;font:inherit}
+.compose-foot{display:flex;align-items:center;gap:14px;padding:12px 20px;border-top:1px solid #ededeb}
+.compose-send{padding:8px 22px;border:0;border-radius:8px;background:#1e3028;color:#fff;font:600 13.5px "DM Sans",sans-serif;cursor:pointer}
+.compose-send:hover{background:#13211b}
+.compose-send:disabled{background:#d9dcd8;color:#8a8a86;cursor:default}
+.compose-hint{color:#8a8a86;font-size:12.5px}
+.compose-error{color:#b84d42;font-size:12.5px}
+@media(max-width:600px){.compose-fields,.compose-scroll{padding-left:14px;padding-right:14px}.compose-field>span{width:48px}}

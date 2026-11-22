@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 /** An email an agent proposes, as written in an `email-draft` code block. */
 export interface Draft {
@@ -168,6 +168,93 @@ export function EmailDraftCard({ draft, onSend, status, translation, approval, b
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 12 20 4l-6.5 16-2.5-6.5L4 12Z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" /></svg>
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+/** Full compose window (used in the solution popup): fields, growing body, approval and Send.
+ *
+ * @param context - What the email is about, e.g. the notification title.
+ * @param title - The solution's title, shown in the window bar.
+ * @param onSend - Called with the edited draft and approver; omit for a read-only sent view.
+ * @param approval - Who must approve (PP-07); Send stays disabled until confirmed.
+ */
+export function ComposeWindow({ context, title, draft, translation, approval, status, busy, error, onSend, onClose }: {
+  context: string;
+  title: string;
+  draft: Draft;
+  translation?: string;
+  approval?: string;
+  status?: string;
+  busy?: boolean;
+  error?: string;
+  onSend?: (draft: Draft, approvedBy?: string) => void;
+  onClose: () => void;
+}) {
+  const [to, setTo] = useState(draft.to.join(", "));
+  const [cc, setCc] = useState(draft.cc.join(", "));
+  const [subject, setSubject] = useState(draft.subject);
+  const [body, setBody] = useState(draft.body);
+  const [showCc, setShowCc] = useState(draft.cc.length > 0);
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [approvedBy, setApprovedBy] = useState("");
+  const [approved, setApproved] = useState(false);
+  const bodyBox = useRef<HTMLTextAreaElement>(null);
+  const editable = !!onSend;
+  const edited = { to: addresses(to), cc: addresses(cc), subject, body };
+  // The body usually already holds the English version; only offer a translation that adds something.
+  const extraTranslation = translation?.trim() && !body.includes(translation.trim().slice(0, 80)) ? translation.trim() : "";
+  const blocked = busy || !edited.to.length || !subject.trim() || !body.trim() || (!!approval && (!approved || !approvedBy.trim()));
+
+  useLayoutEffect(() => {
+    const box = bodyBox.current;
+    if (!box) return;
+    box.style.height = "auto";
+    box.style.height = `${box.scrollHeight}px`;
+  }, [body]);
+
+  const field = (label: string, value: string, set: (value: string) => void, readOnly: string) => (
+    <label className="compose-field"><span>{label}</span>{editable ? <input value={value} onChange={(event) => set(event.target.value)} /> : <em>{readOnly}</em>}</label>
+  );
+
+  return (
+    <div className="compose">
+      <header className="compose-bar">
+        <div><small>{context}</small><strong>{title}</strong></div>
+        {status && <span className="compose-status">{status}</span>}
+        <button type="button" className="compose-close" aria-label="Close" onClick={onClose} disabled={busy}>×</button>
+      </header>
+      <div className="compose-fields">
+        <div className="compose-row">
+          {field("To", to, setTo, draft.to.join(", "))}
+          {editable && !showCc && <button type="button" className="compose-cc" onClick={() => setShowCc(true)}>Cc</button>}
+        </div>
+        {(showCc || (!editable && draft.cc.length > 0)) && <div className="compose-row">{field("Cc", cc, setCc, draft.cc.join(", "))}</div>}
+        <div className="compose-row compose-subject">{field("Subject", subject, setSubject, draft.subject)}</div>
+      </div>
+      <div className="compose-scroll">
+        {editable
+          ? <textarea ref={bodyBox} className="compose-body" aria-label="Message" value={body} onChange={(event) => setBody(event.target.value)} />
+          : <div className="compose-body">{draft.body}</div>}
+        {extraTranslation && (
+          <div className="compose-translation">
+            <button type="button" onClick={() => setShowTranslation((value) => !value)}>{showTranslation ? "Hide" : "Show"} English translation</button>
+            {showTranslation && <p>{extraTranslation}</p>}
+          </div>
+        )}
+      </div>
+      {editable && approval && (
+        <div className="compose-approval">
+          <span>Requires approval: <strong>{approval}</strong></span>
+          <label><input type="checkbox" checked={approved} onChange={(event) => setApproved(event.target.checked)} /> Approved by</label>
+          <input aria-label="Approver name" placeholder="Name" value={approvedBy} onChange={(event) => setApprovedBy(event.target.value)} />
+        </div>
+      )}
+      {editable && (
+        <footer className="compose-foot">
+          <button type="button" className="compose-send" disabled={blocked} onClick={() => onSend(edited, approval ? approvedBy.trim() : undefined)}>{busy ? "Sending…" : "Send"}</button>
+          {error ? <span className="compose-error" role="alert">{error}</span> : <span className="compose-hint">Nothing is sent until you click Send.</span>}
+        </footer>
       )}
     </div>
   );

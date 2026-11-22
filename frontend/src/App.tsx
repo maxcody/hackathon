@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { importMaster, importSheets, listNotifications, sendSolutionEmail, syncPortal, updateNotificationData } from "./api";
 import type { Notification, Severity, Solution } from "./types";
-import { EmailDraftCard } from "./EmailDraft";
+import { ComposeWindow } from "./EmailDraft";
 import type { Draft } from "./EmailDraft";
 import { AgentsPage } from "./AgentsPage";
 
@@ -295,12 +295,7 @@ function SolutionEmailDialog({ notification, index, solution, onClose, onSent }:
 
   return (
     <dialog ref={dialog} className="solution-dialog" onClose={onClose} onCancel={(event) => { if (busy) event.preventDefault(); }}>
-      <div className="solution-dialog-head">
-        <div><span>{notification.data.title}</span><strong>{solution.title}</strong></div>
-        <button type="button" aria-label="Close" onClick={() => dialog.current?.close()} disabled={busy}>×</button>
-      </div>
-      {error && <p className="message message-error" role="alert">{error}</p>}
-      <EmailDraftCard draft={draft} translation={solution.email?.translation} approval={sent ? undefined : solution.approval} busy={busy} onSend={sent ? undefined : (edited, approvedBy) => void send(edited, approvedBy)} status={sent ? `Sent${solution.approved_by ? ` · approved by ${solution.approved_by}` : ""}` : undefined} />
+      <ComposeWindow context={notification.data.title ?? ""} title={solution.title} draft={draft} translation={solution.email?.translation} approval={sent ? undefined : solution.approval} busy={busy} error={error} onClose={() => dialog.current?.close()} onSend={sent ? undefined : (edited, approvedBy) => void send(edited, approvedBy)} status={sent ? `Sent${solution.approved_by ? ` · approved by ${solution.approved_by}` : ""}` : undefined} />
     </dialog>
   );
 }
