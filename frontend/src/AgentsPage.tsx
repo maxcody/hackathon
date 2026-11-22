@@ -176,6 +176,9 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
           </>}
           </div>
         </div>
+        <div className="agent-quick" aria-label="Skills">
+          <button type="button" disabled={!!pending} onClick={() => void submit("Run the risk-check skill.")} title="Fetch the latest Soony data, check it for conflicts and launch risks, and post notifications">Run risk check</button>
+        </div>
         <form onSubmit={send} className="agent-composer">
           {error && <p className="message message-error" role="alert">{error}</p>}
           <textarea aria-label={`Message ${agent.name}`} placeholder={`Message ${agent.name}`} required rows={1} onInput={(event) => { const box = event.currentTarget; box.style.height = "auto"; box.style.height = `${box.scrollHeight}px`; }} maxLength={8000} disabled={!!pending} value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => {

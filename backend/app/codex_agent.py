@@ -24,10 +24,12 @@ CHAT_GUIDANCE = (
     "Soony portal data mirror; use the portal tools for fresh data and cite file "
     "paths. Post confirmed problems with the notifications tools. You do have an "
     "email address: the email tool sends from the team's own address (call "
-    "sender_info); 'yourself' or 'the team' means that address. "
-    f"{EMAIL_DRAFT_GUIDANCE}"
+    "sender_info); 'yourself' or 'the team' means that address. Repeatable "
+    "procedures live in the skills tools: when asked for a skill (e.g. 'run the "
+    "risk check') or when a task matches one, call get_skill and follow it step "
+    f"by step. {EMAIL_DRAFT_GUIDANCE}"
 )
-TOOL_SERVERS = ("portal", "notifications", "email")
+TOOL_SERVERS = ("portal", "notifications", "email", "skills")
 
 
 class CodexError(Exception):

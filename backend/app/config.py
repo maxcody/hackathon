@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     chat_engine: Literal["codex", "openai"] = "codex"
     codex_model: str | None = None  # empty: Codex's own default model
     codex_reasoning_effort: Literal["minimal", "low", "medium", "high"] = "low"
-    codex_timeout_seconds: PositiveInt = 300
+    codex_timeout_seconds: PositiveInt = (
+        1200  # a full risk-check skill run takes minutes
+    )
     # Only used by CHAT_ENGINE=openai; any OpenAI-compatible endpoint works.
     llm_model: str | None = None
     llm_api_key: str | None = None

@@ -1,4 +1,4 @@
-﻿# Linewatch — Soony Launch Control
+# Linewatch — Soony Launch Control
 
 Dashboard and agents for the Lio Hack League case. The backend stores Soony's launch data and the notifications the dashboard shows (see `backend/HOW_IT_WORKS.md`). The analysis runs in Codex agents outside the backend: they read the portal data, write findings as notifications and can email suppliers.
 
@@ -56,7 +56,7 @@ By default each agent runs as a Codex session (`codex exec`) with the `portal`,
 `notifications` and `email` MCP tools; follow-up messages resume the session.
 Set `CHAT_ENGINE=openai` to answer through `LLM_MODEL` directly instead (no tools).
 Codex options: `CODEX_MODEL`, `CODEX_REASONING_EFFORT` (default `low`),
-`CODEX_TIMEOUT_SECONDS` (default 300).
+`CODEX_TIMEOUT_SECONDS` (default 1200).
 
 ## Run multiple Codex coding assistants
 

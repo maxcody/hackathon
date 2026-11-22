@@ -85,3 +85,9 @@ input.mail-subject:focus{border-bottom-color:#c9c9c4}
 .mail-send:disabled{background:#e6e6e3;color:#a3a39e;cursor:default}
 .mail-send-line{margin:0}
 @media(max-width:600px){.mail-body,.mail-foot{padding-left:18px}.mail-hint{display:none}}
+/* Skill shortcuts above the composer */
+.agent-quick{display:flex;gap:6px;width:min(100% - 32px,780px);margin:0 auto 8px}
+.agent-quick button{padding:5px 12px;border:1px solid #e3e3e0;border-radius:999px;background:#fff;color:#3a3a36;font:500 12.5px "DM Sans",sans-serif;cursor:pointer}
+.agent-quick button:hover{border-color:#c9c9c4;background:#f6f6f4}
+.agent-quick button:disabled{color:#a3a39e;cursor:default;background:#fff}
+@media(max-width:600px){.agent-quick{width:calc(100% - 20px)}}
