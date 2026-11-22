@@ -39,6 +39,9 @@ class EmailSettings(BaseSettings):
     email_allowed_domains: str = "suppliers.juliansibbing.de"
     # Brevo's HTTPS API, used instead of SMTP when set (works where SMTP is blocked)
     brevo_api_key: str | None = None
+    # Received mail: the Apps Script web app in scripts/gmail_inbox.gs
+    gmail_script_url: str | None = None
+    gmail_script_token: str | None = None
 
 
 def send_via_brevo(message: EmailMessage, settings: EmailSettings) -> str:

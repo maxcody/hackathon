@@ -59,3 +59,51 @@ def test_newest_first_with_status(setup: None) -> None:
     status = {m.subject: m.status for m in box.messages}
     assert status == {"A": "delivered", "B": "hardBounces"}
     assert box.status_source == "brevo" and box.sender == "me@x"
+
+
+def test_received_mail_is_merged_and_errors_are_reported(
+    setup: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    received = {
+        "message_id": "<r>",
+        "in_reply_to": "<a>",
+        "at": "2026-11-21T12:00",
+        "sender": "Supplier <s@sup>",
+        "to": ["me@x"],
+        "subject": "Re: A",
+        "body": "ok",
+    }
+    request = httpx.Request("GET", "https://script.google.com")
+
+    def fake_get(url: str, **kwargs: object) -> httpx.Response:
+        if "brevo" in url:
+            return httpx.Response(200, json={"events": EVENTS}, request=request)
+        payload = (
+            {"messages": [received]}
+            if kwargs["params"]["token"] == "t"
+            else {"error": "forbidden"}
+        )
+        return httpx.Response(200, json=payload, request=request)
+
+    monkeypatch.setattr(inbox.httpx, "get", fake_get)
+    settings = {
+        "smtp_user": "me@x",
+        "brevo_api_key": "k",
+        "gmail_script_url": "https://script",
+    }
+    monkeypatch.setattr(
+        inbox,
+        "EmailSettings",
+        lambda: EmailSettings(_env_file=None, gmail_script_token="t", **settings),
+    )
+    box = inbox.mailbox()
+    assert [m.subject for m in box.messages] == ["Re: A", "B", "A"]
+    assert box.messages[0].direction == "in" and box.messages[0].in_reply_to == "<a>"
+    monkeypatch.setattr(
+        inbox,
+        "EmailSettings",
+        lambda: EmailSettings(_env_file=None, gmail_script_token="wrong", **settings),
+    )
+    box = inbox.mailbox()
+    assert box.incoming_error and "forbidden" in box.incoming_error
+    assert len(box.messages) == 2  # sent mail still shown

@@ -80,6 +80,19 @@ from `backend/`:
 ..\.venv\Scripts\python.exe scripts/run_skill.py risk-check
 ```
 
+## Inbox
+
+The **Inbox** tab lists sent mail (from `.local_data/sent_emails.jsonl`) with
+its Brevo delivery status. Received mail (supplier replies to `SMTP_USER`)
+comes from a small Google Apps Script, because IMAP is often blocked on company
+networks while HTTPS to Google is not. Set it up once, signed in as the sender
+Gmail account (any device works):
+
+1. https://script.google.com: new project, paste `backend/scripts/gmail_inbox.gs`.
+2. Project Settings, Script properties: `TOKEN` = a long random secret.
+3. Deploy, New deployment, Web app: execute as *Me*, access *Anyone*; allow Gmail access.
+4. In `backend/.env`: `GMAIL_SCRIPT_URL=<web app URL>` and `GMAIL_SCRIPT_TOKEN=<secret>`.
+
 ## Run multiple Codex coding assistants
 
 Install and sign in to the Codex CLI on the machine that will run the agents.

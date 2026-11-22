@@ -40,6 +40,7 @@ export function InboxPage() {
 
   const messages = useMemo(() => (box?.messages ?? []).filter((m) => folder === "all" || m.direction === folder), [box, folder]);
   const open = messages.find((m) => m.message_id === selected) ?? messages[0];
+  const original = open?.in_reply_to ? box?.messages.find((m) => m.message_id === open.in_reply_to) : undefined;
 
   return (
     <main className="main-content inbox-page" id="inbox">
@@ -55,7 +56,8 @@ export function InboxPage() {
         {box?.sender && <span className="inbox-account">{box.sender}</span>}
       </header>
       {error && <p className="message message-error" role="alert">{error}</p>}
-      {box && !box.incoming_configured && folder !== "out" && <p className="inbox-notice">Received mail is not connected yet. Supplier replies go to {box.sender ?? "the sender address"} and will appear here once incoming mail is set up.</p>}
+      {box && !box.incoming_configured && folder !== "out" && <p className="inbox-notice">Received mail is not connected yet. Supplier replies go to {box.sender ?? "the sender address"}; connect it with the Gmail Apps Script (see README, "Inbox").</p>}
+      {box?.incoming_error && <p className="inbox-notice inbox-notice-error">{box.incoming_error}</p>}
       <div className="inbox-panes">
         <ul className="inbox-list" aria-label="Messages">
           {!box && !error && <li className="inbox-empty">Loading…</li>}
@@ -83,6 +85,7 @@ export function InboxPage() {
                   <div><dt>To</dt><dd>{open.to.join(", ")}</dd></div>
                   {open.cc.length > 0 && <div><dt>Cc</dt><dd>{open.cc.join(", ")}</dd></div>}
                   <div><dt>Date</dt><dd>{new Date(open.at).toLocaleString()}</dd></div>
+                  {original && <div><dt>Reply to</dt><dd><button type="button" className="inbox-link" onClick={() => { setFolder("all"); setSelected(original.message_id); }}>{original.subject}</button></dd></div>}
                   {open.direction === "out" && <div><dt>Status</dt><dd>{open.status ? <><StatusChip message={open} />{open.status_at && <small> {new Date(open.status_at).toLocaleString()}</small>}</> : box?.status_source ? "No delivery event yet" : "Unknown (Brevo not configured)"}</dd></div>}
                 </dl>
               </header>

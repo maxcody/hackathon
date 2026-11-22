@@ -1,4 +1,6 @@
-"""Mailbox view for the dashboard: sent emails with their Brevo delivery status."""
+"""Mailbox view for the dashboard: sent mail with Brevo delivery status, and
+received mail from the team Gmail via the Apps Script in ``scripts/gmail_inbox.gs``.
+"""
 
 import json
 
@@ -29,6 +31,7 @@ class MailMessage(BaseModel):
     body: str
     status: str | None = None  # Brevo delivery status for outgoing mail
     status_at: str | None = None
+    in_reply_to: str | None = None  # for received mail: the sent mail it answers
 
 
 class Mailbox(BaseModel):
@@ -38,6 +41,7 @@ class Mailbox(BaseModel):
     sender: str | None
     status_source: str | None  # "brevo" when delivery statuses are available
     incoming_configured: bool
+    incoming_error: str | None = None
 
 
 def _sent() -> list[dict]:
@@ -70,6 +74,21 @@ def _brevo_status(settings: EmailSettings) -> dict[str, tuple[str, str]]:
     return status
 
 
+def _received(settings: EmailSettings) -> list[MailMessage]:
+    """Fetch received mail from the Apps Script web app (last 14 days)."""
+    response = httpx.get(
+        settings.gmail_script_url,
+        params={"token": settings.gmail_script_token, "days": 14},
+        follow_redirects=True,  # Apps Script answers via a googleusercontent redirect
+        timeout=30,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if "error" in payload:
+        raise ValueError(payload["error"])
+    return [MailMessage(direction="in", **message) for message in payload["messages"]]
+
+
 def mailbox() -> Mailbox:
     """Collect sent mail and, if Brevo is configured, its delivery status."""
     settings = EmailSettings()
@@ -95,15 +114,24 @@ def mailbox() -> Mailbox:
         )
         for entry in _sent()
     ]
+    configured = bool(settings.gmail_script_url and settings.gmail_script_token)
+    incoming_error = None
+    if configured:
+        try:
+            messages += _received(settings)
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as error:
+            incoming_error = f"Could not read the Gmail inbox: {error}"
+    messages.sort(key=lambda m: m.at, reverse=True)
     return Mailbox(
         messages=messages,
         sender=settings.smtp_user,
         status_source=source,
-        incoming_configured=False,
+        incoming_configured=configured,
+        incoming_error=incoming_error,
     )
 
 
 @router.get("")
 async def get_inbox() -> Mailbox:
-    """Sent emails with delivery status (incoming mail is not connected yet)."""
+    """Sent mail with delivery status, plus received mail when Gmail is connected."""
     return await run_in_threadpool(mailbox)

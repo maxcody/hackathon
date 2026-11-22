@@ -33,3 +33,5 @@
 .inbox-body{color:#1f2d28;font-size:14px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;max-width:80ch}
 .inbox-empty{padding:20px 16px;color:#9aa39c;font-size:13px}
 @media(max-width:760px){.inbox-panes{grid-template-columns:1fr;grid-template-rows:minmax(180px,40%) 1fr}.inbox-list{border-right:0;border-bottom:1px solid #ececea}}
+.inbox-notice-error{background:#fdf1ef;color:#a5453b}
+.inbox-link{padding:0;border:0;background:none;color:#487553;font:inherit;text-decoration:underline;cursor:pointer}

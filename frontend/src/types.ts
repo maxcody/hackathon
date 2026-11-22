@@ -144,6 +144,8 @@ export interface MailMessage {
   /** Brevo delivery status of outgoing mail, e.g. "delivered". */
   status: string | null;
   status_at: string | null;
+  /** For received mail: Message-ID of the sent mail it answers. */
+  in_reply_to?: string | null;
 }
 
 /** Everything the inbox tab shows. */
@@ -152,4 +154,5 @@ export interface Mailbox {
   sender: string | null;
   status_source: string | null;
   incoming_configured: boolean;
+  incoming_error?: string | null;
 }
