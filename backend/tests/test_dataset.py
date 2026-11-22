@@ -73,3 +73,10 @@ def test_unknown_dataset(data: Path) -> None:
         "suppliers",
         "notices",
     ]
+
+
+def test_files_lists_every_file_with_folder_and_path(data: Path) -> None:
+    listed = {f.path: f for f in dataset.files()}
+    assert "soony/receiving/DC-HAM/20261118_WZ-261116-473.jpg" in listed
+    assert listed["suppliers/SUP-1_Acme/profile.csv"].folder == "suppliers/SUP-1_Acme"
+    assert len(listed) == 5

@@ -46,3 +46,123 @@
     animation: none;
   }
 }
+
+/* Issue summary cards: lift and a green hairline on hover, a small press on click. */
+.issue-link {
+  display: block;
+  height: 100%; /* lets every card in a grid row stretch to the same height */
+  color: inherit;
+  text-decoration: none;
+  border-radius: 12px;
+  height: 100%; /* every card in a grid row is as tall as the tallest */
+}
+.issue-link > * {
+  height: 100%;
+  transition:
+    transform 160ms ease-out,
+    box-shadow 160ms ease-out;
+}
+.issue-link:hover > *,
+.issue-link:focus-visible > * {
+  transform: translateY(-3px);
+  box-shadow: 0 0 0 1px var(--color-accent, #487553), 0 8px 20px rgb(0 0 0 / 0.25);
+}
+.issue-link:active > * {
+  transform: translateY(-1px) scale(0.99);
+}
+@media (prefers-reduced-motion: reduce) {
+  .issue-link > * {
+    transition: none;
+  }
+  .issue-link:hover > *,
+  .issue-link:focus-visible > *,
+  .issue-link:active > * {
+    transform: none;
+  }
+}
+/* Collapsed sidebar: one compact countdown line centred in the rail. */
+.side-countdown-mini { padding: 12px 0; text-align: center; font-weight: 600; font-size: 13px; color: inherit; }
+
+/* Launch readiness: part coverage bars. Status colors come from the Astryx theme
+   (light and dark), and every bar also has a text label, so color is never alone. */
+.cov-list { display: flex; flex-direction: column; }
+.cov-row { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; }
+.cov-row + .cov-row { border-top: 1px solid var(--color-border); }
+.cov-head { display: flex; align-items: flex-start; gap: 12px; }
+.cov-name { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.cov-tag { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  background: var(--tone-muted); color: var(--color-on-surface, inherit); }
+.cov-track { display: flex; gap: 2px; height: 10px; border-radius: 4px; overflow: hidden;
+  background: var(--color-background-muted); }
+.cov-fill { background: var(--tone); border-radius: 4px; }
+.cov-gap { border-radius: 4px; background: repeating-linear-gradient(135deg,
+  var(--color-error) 0 3px, transparent 3px 7px); opacity: 0.55; }
+.cov-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.cov-short { --tone: var(--color-error); --tone-muted: var(--color-error-muted); }
+.cov-disputed { --tone: var(--color-warning); --tone-muted: var(--color-warning-muted); }
+.cov-ok { --tone: var(--color-success); --tone-muted: var(--color-success-muted); }
+.cov-count { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.cov-swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--tone); }
+
+/* Edition cards: remaining packs split into blocked / at risk / ready */
+.ed-bar { display: flex; gap: 2px; height: 14px; border-radius: 4px; overflow: hidden; background: var(--color-background-muted); }
+.ed-seg { background: var(--tone); flex-basis: 0; border-radius: 4px; }
+.ed-rows { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.ed-row { display: grid; grid-template-columns: 10px 64px 1fr; align-items: baseline; gap: 10px; }
+.ed-row strong { font-variant-numeric: tabular-nums; text-align: right; }
+.ed-row span:last-child { opacity: .8; }
+
+/* Issues under a part's coverage bar: whole line is the link */
+.cov-head { align-items: center; }
+.cov-issues { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+.cov-issue { display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin: 0 -8px; border-radius: 8px;
+  color: inherit; text-decoration: none; font-size: 14px; }
+.cov-issue span:nth-child(2) { flex: 1; }
+.cov-issue span:last-child { opacity: .5; transition: transform .15s ease; }
+.cov-issue:hover { background: var(--color-background-muted); }
+.cov-issue:hover span:last-child { opacity: 1; transform: translateX(2px); }
+
+/* Needed vs available chart */
+:root {
+  --chart-track: color-mix(in srgb, currentColor 16%, transparent);
+}
+.coverage {
+  display: grid;
+  gap: 12px;
+}
+.coverage-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 240px) 1fr minmax(120px, 160px) 56px;
+  gap: 16px;
+  align-items: center;
+}
+.coverage-row > :nth-child(3),
+.coverage-row > :nth-child(4) {
+  text-align: end;
+}
+.coverage-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--chart-track);
+  overflow: hidden;
+}
+.coverage-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 300ms ease-out;
+}
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+@media (max-width: 720px) {
+  .coverage-row {
+    grid-template-columns: 1fr auto;
+  }
+  .coverage-track {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}

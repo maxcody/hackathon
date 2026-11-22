@@ -3,67 +3,57 @@ import {
   ArrowPathIcon,
   BellIcon,
   ChartBarSquareIcon,
+  FolderIcon,
   InboxIcon,
   Squares2X2Icon,
   CpuChipIcon,
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import { AppShell } from "@astryxdesign/core/AppShell";
-import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
-import { TopNav } from "@astryxdesign/core/TopNav";
+import { SideNav, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
+import { TopNav, TopNavHeading } from "@astryxdesign/core/TopNav";
 import { Layout, LayoutContent, HStack, VStack, StackItem } from "@astryxdesign/core/Layout";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { Button } from "@astryxdesign/core/Button";
+import { LoadingButton } from "./LoadingButton";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Avatar } from "@astryxdesign/core/Avatar";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Card } from "@astryxdesign/core/Card";
-import { Section } from "@astryxdesign/core/Section";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Icon } from "@astryxdesign/core/Icon";
+import { Grid } from "@astryxdesign/core/Grid";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Popover } from "@astryxdesign/core/Popover";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { Dialog } from "@astryxdesign/core/Dialog";
 import { Divider } from "@astryxdesign/core/Divider";
-import { getSkillRun, importMaster, importSheets, listNotifications, sendSolutionEmail, startSkillRun, syncPortal, updateNotificationData } from "./api";
-import type { Notification, Severity, SkillRun, Solution } from "./types";
-import { ComposeWindow } from "./EmailDraft";
-import type { Draft } from "./EmailDraft";
+import { getSkillRun, getThreadSummaries, importMaster, importSheets, listNotifications, startSkillRun, syncPortal } from "./api";
+import type { Fact, Notification, Severity, SkillRun, ThreadSummary } from "./types";
 import { AgentsPage } from "./AgentsPage";
 import { ReadinessPanel } from "./ReadinessPanel";
 import { InboxPage } from "./InboxPage";
 import { DataPage } from "./DataPage";
-import { localTime, timeToLaunch } from "./time";
+import { FilesPage } from "./FilesPage";
+import { threadState } from "./IssueThread";
+import { IssuePage, issueHref, parseIssueHash } from "./IssuePage";
+import {
+  SupplierChain,
+  byPriority,
+  isOpen,
+  issueTitle,
+  openSolutions,
+  severityDot,
+  severityOf,
+  severityOrder,
+  severityVariant,
+  sortIssues,
+} from "./issues";
+import { clockTime, localTime, shortTimeToLaunch, timeToLaunch } from "./time";
 
-const severityOrder: Severity[] = ["critical", "warning", "info"];
 const REFRESH_MS = 30 * 1000;
-
-/** Normalize a notification's free-text severity to a known level. */
-function severityOf(notification: Notification): Severity {
-  const value = String(notification.data.severity ?? "").toLowerCase();
-  return (severityOrder as string[]).includes(value) ? (value as Severity) : "info";
-}
-
-/** Whether a notification still needs a person. */
-function isOpen(notification: Notification): boolean {
-  return (notification.data.status ?? "open") !== "resolved";
-}
-
-function severityVariant(severity: Severity): "error" | "warning" | "info" {
-  if (severity === "critical") return "error";
-  if (severity === "warning") return "warning";
-  return "info";
-}
-
-function severityDot(severity: Severity): "error" | "warning" | "accent" {
-  if (severity === "critical") return "error";
-  if (severity === "warning") return "warning";
-  return "accent";
-}
 
 /** Build the launch control dashboard with Astryx AppShell chrome. */
 export function App() {
@@ -91,12 +81,25 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [refresh]);
 
-  const issues = location === "#issues" || location.startsWith("#n-");
+  // Who wrote last in each issue's email thread; supplier answers arrive in the background
+  const [threads, setThreads] = useState<Record<string, ThreadSummary>>({});
+  const loadThreads = useCallback(() => {
+    getThreadSummaries().then(setThreads).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    loadThreads();
+    const timer = window.setInterval(loadThreads, REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [loadThreads]);
+
+  const issue = parseIssueHash(location);
+  const issues = location === "#issues" || issue !== null;
   const navLocation = issues ? "#issues" : location;
 
   let page;
   if (location === "#agents") page = <AgentsPage />;
-  else if (location === "#inbox") page = <InboxPage />;
+  else if (location === "#inbox") page = <InboxPage notifications={notifications ?? []} />;
+  else if (location === "#files") page = <FilesPage />;
   else if (location === "#data") page = <DataPage notifications={notifications ?? []} />;
   else if (notifications === null) {
     page = loadError ? (
@@ -124,16 +127,21 @@ export function App() {
         }
       />
     );
-  } else if (issues) {
+  } else if (issue) {
     page = (
-      <IssuesPage
-        notifications={notifications}
+      <IssuePage
+        notification={notifications.find((n) => n.id === issue.id)}
+        ordered={sortIssues(notifications)}
+        tab={issue.tab}
+        thread={threads[issue.id]}
         refresh={refresh}
-        focus={location.startsWith("#n-") ? location.slice(1) : null}
+        onThreadsChanged={loadThreads}
       />
     );
+  } else if (issues) {
+    page = <IssuesPage notifications={notifications} threads={threads} refresh={refresh} />;
   } else {
-    page = <Dashboard notifications={notifications} refresh={refresh} />;
+    page = <Dashboard notifications={notifications} threads={threads} />;
   }
 
   return (
@@ -144,6 +152,13 @@ export function App() {
       topNav={
         <TopNav
           label={pageTitle(navLocation)}
+          heading={
+            <TopNavHeading
+              logo={<img src="/linewatch-mark.png" alt="" width={24} height={24} />}
+              heading="Linewatch"
+              headingHref="#overview"
+            />
+          }
           endContent={
             <HStack gap={3} vAlign="center">
               <NotificationBell notifications={notifications ?? []} />
@@ -161,6 +176,7 @@ export function App() {
 function pageTitle(location: string): string {
   if (location === "#inbox") return "Inbox";
   if (location === "#data") return "Data";
+  if (location === "#files") return "Files";
   if (location === "#agents") return "Agents";
   if (location === "#issues") return "Issues";
   return "Overview";
@@ -168,14 +184,18 @@ function pageTitle(location: string): string {
 
 /** Workspace navigation with the launch countdown. */
 function AppSideNav({ location }: { location: string }) {
-  const current = location === "#issues" ? "#overview" : location;
+  const current = location;
+  const [collapsed, setCollapsed] = useState(false);
   return (
     <SideNav
-      collapsible
-      header={
-        <SideNavHeading heading="Linewatch" headingHref="#overview" />
-      }
+      collapsible={{ isCollapsed: collapsed, onCollapsedChange: setCollapsed }}
       footer={
+        // The rail is too narrow for text: show only the hours left, full text on hover.
+        collapsed ? (
+          <div className="side-countdown-mini" title={`Launch Sun 22 Nov, 20:00 · ${timeToLaunch()}`}>
+            {shortTimeToLaunch()}
+          </div>
+        ) : (
         // color="inherit" takes the sidebar's light text color from the theme (secondary gray is unreadable on dark green)
         <VStack gap={1} padding={3}>
           <Text type="supporting" color="inherit">
@@ -188,6 +208,7 @@ function AppSideNav({ location }: { location: string }) {
             {timeToLaunch()}
           </Text>
         </VStack>
+        )
       }
     >
       <SideNavSection title="Workspace" isHeaderHidden>
@@ -196,6 +217,12 @@ function AppSideNav({ location }: { location: string }) {
           icon={Squares2X2Icon}
           href="#overview"
           isSelected={current === "#overview"}
+        />
+        <SideNavItem
+          label="Issues"
+          icon={ExclamationTriangleIcon}
+          href="#issues"
+          isSelected={current === "#issues"}
         />
         <SideNavItem
           label="Inbox"
@@ -210,10 +237,10 @@ function AppSideNav({ location }: { location: string }) {
           isSelected={current === "#data"}
         />
         <SideNavItem
-          label="Issues"
-          icon={ExclamationTriangleIcon}
-          href="#issues"
-          isSelected={current === "#issues"}
+          label="Files"
+          icon={FolderIcon}
+          href="#files"
+          isSelected={current === "#files"}
         />
         <SideNavItem
           label="Agents"
@@ -226,17 +253,14 @@ function AppSideNav({ location }: { location: string }) {
   );
 }
 
-/** Launch overview: urgent actions first, followed by packing and component readiness. */
-function Dashboard({ notifications, refresh }: { notifications: Notification[]; refresh: () => Promise<void> }) {
+/** Launch overview: countdown, data sync and readiness; issues live on their own page. */
+function Dashboard({ notifications, threads }: { notifications: Notification[]; threads: Record<string, ThreadSummary> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const open = notifications.filter(isOpen);
   const critical = open.filter((n) => severityOf(n) === "critical").length;
-  const priority = [...open].sort(
-    (a, b) => severityOrder.indexOf(severityOf(a)) - severityOrder.indexOf(severityOf(b)) ||
-      b.seen_at.localeCompare(a.seen_at),
-  );
+  const ranked = byPriority(notifications, threads);
 
   async function handleSync() {
     setBusy(true);
@@ -261,21 +285,19 @@ function Dashboard({ notifications, refresh }: { notifications: Notification[]; 
   return (
     <Layout
       height="fill"
-      contentWidth={1200}
       content={
         <LayoutContent role="main" id="overview">
           <VStack gap={6} padding={6}>
             <HStack gap={4} vAlign="end" wrap="wrap">
               <StackItem size="fill">
                 <VStack gap={1}>
-                  <Heading level={1}>Grand Heist 6 · launch control</Heading>
+                  <Heading level={1}>Grand Heist 6 launch</Heading>
                   <Text color="secondary">
-                    Sun 22 Nov, 20:00 · DC Hamburg · {timeToLaunch()} remaining
+                    Sun 22 Nov, 20:00 · DC Hamburg · {timeToLaunch()}
                   </Text>
                 </VStack>
               </StackItem>
-              <RiskCheck onFinished={refresh} />
-              <Button
+              <LoadingButton
                 label={busy ? "Syncing…" : "Sync portal data"}
                 variant="secondary"
                 icon={<Icon icon={ArrowPathIcon} size="sm" />}
@@ -303,42 +325,40 @@ function Dashboard({ notifications, refresh }: { notifications: Notification[]; 
               />
             )}
 
-            <Section padding={0}>
-              <VStack gap={3}>
-                <HStack gap={3} vAlign="center" wrap="wrap">
-                  <StackItem size="fill">
-                    <VStack gap={1}>
-                      <Heading level={2}>Needs attention</Heading>
-                      <Text type="supporting" color="secondary">
-                        {critical} critical · {open.length - critical} other open issues
-                      </Text>
-                    </VStack>
-                  </StackItem>
-                  {critical > 0 && <Badge label={`${critical} critical`} variant="error" />}
-                  <Button label="All issues" variant="secondary" href="#issues" />
-                </HStack>
-                {priority.length ? (
-                  <Card padding={0} elevation="low">
-                    <List density="compact" hasDividers>
-                      {priority.slice(0, 5).map((notification) => (
-                        <ListItem
-                          key={notification.id}
-                          align="first-line"
-                          label={notification.data.title || `${notification.attr} mismatch`}
-                          description={`${severityOf(notification)} · ${notification.data.details ?? notification.data.kind ?? "Review source evidence"}${notification.data.refs?.length ? ` · ${notification.data.refs.slice(0, 2).join(", ")}` : ""}`}
-                          startContent={<StatusDot variant={severityDot(severityOf(notification))} label={severityOf(notification)} />}
-                          href={`#n-${notification.id}`}
-                        />
-                      ))}
-                    </List>
-                  </Card>
-                ) : (
-                  <EmptyState title="No open issues" description="The latest risk check found nothing that needs review." isCompact />
-                )}
-              </VStack>
-            </Section>
-
             <ReadinessPanel notifications={notifications} />
+
+            {/* What to work on, most urgent first */}
+            <VStack gap={3}>
+              <HStack gap={3} vAlign="center" wrap="wrap">
+                <StackItem size="fill">
+                  <HStack gap={2} vAlign="center">
+                    <Heading level={2}>Issues to address</Heading>
+                    {critical > 0 && <Badge label={`${critical} critical`} variant="error" />}
+                  </HStack>
+                </StackItem>
+                <Button label={`View all ${open.length}`} variant="secondary" href="#issues" />
+              </HStack>
+              <Text type="supporting" color="secondary">
+                Most urgent first: by severity, then where a supplier answered, then where a proposed action is
+                still open.
+              </Text>
+              {ranked.length ? (
+                <VStack gap={2}>
+                  <Grid columns={{ minWidth: 320, max: 3 }} gap={3}>
+                    {ranked.slice(0, 6).map((n, index) => (
+                      <IssueSummary key={n.id} notification={n} thread={threads[n.id]} rank={index + 1} />
+                    ))}
+                  </Grid>
+                  {ranked.length > 6 && (
+                    <HStack>
+                      <Button label={`${ranked.length - 6} more issues`} variant="ghost" href="#issues" />
+                    </HStack>
+                  )}
+                </VStack>
+              ) : (
+                <EmptyState title="Nothing open" description="Run the risk check on the Issues page to look for problems." isCompact />
+              )}
+            </VStack>
           </VStack>
         </LayoutContent>
       }
@@ -346,30 +366,26 @@ function Dashboard({ notifications, refresh }: { notifications: Notification[]; 
   );
 }
 
-/** Issues page: everything the agents found, with solutions, and the risk check. */
+/** Issues page: every problem the agents found, one row each; a row opens the issue page. */
 function IssuesPage({
   notifications,
+  threads,
   refresh,
-  focus,
 }: {
   notifications: Notification[];
+  threads: Record<string, ThreadSummary>;
   refresh: () => Promise<void>;
-  focus: string | null;
 }) {
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | Severity>("all");
+  const [filter, setFilter] = useState<"all" | "replied" | Severity>("all");
   const [showResolved, setShowResolved] = useState(false);
   const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    if (focus) document.getElementById(focus)?.scrollIntoView({ block: "start" });
-  }, [focus]);
+  const replied = useCallback((n: Notification) => threads[n.id]?.last_direction === "in", [threads]);
 
   const visible = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return [...notifications]
-      .filter((n) => showResolved || isOpen(n) || `n-${n.id}` === focus)
-      .filter((n) => filter === "all" || severityOf(n) === filter)
+    return sortIssues(notifications)
+      .filter((n) => showResolved || isOpen(n))
+      .filter((n) => filter === "all" || (filter === "replied" ? replied(n) : severityOf(n) === filter))
       .filter(
         (n) =>
           !normalized ||
@@ -377,13 +393,8 @@ function IssuesPage({
             .join(" ")
             .toLowerCase()
             .includes(normalized),
-      )
-      .sort(
-        (a, b) =>
-          severityOrder.indexOf(severityOf(a)) - severityOrder.indexOf(severityOf(b)) ||
-          b.seen_at.localeCompare(a.seen_at),
       );
-  }, [notifications, filter, query, showResolved, focus]);
+  }, [notifications, filter, query, showResolved, replied]);
 
   const counts = useMemo(() => {
     const initial: Record<Severity, number> = { critical: 0, warning: 0, info: 0 };
@@ -391,21 +402,11 @@ function IssuesPage({
     return initial;
   }, [notifications]);
   const openTotal = counts.critical + counts.warning + counts.info;
-
-  async function setStatus(notification: Notification, status: string) {
-    setError(null);
-    try {
-      await updateNotificationData(notification.id, { ...notification.data, status });
-      await refresh();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not update the issue.");
-    }
-  }
+  const repliedTotal = notifications.filter((n) => isOpen(n) && replied(n)).length;
 
   return (
     <Layout
       height="fill"
-      contentWidth={1200}
       content={
         <LayoutContent role="main" id="issues">
           <VStack gap={6} padding={6}>
@@ -414,78 +415,42 @@ function IssuesPage({
                 <VStack gap={1}>
                   <Heading level={1}>Issues</Heading>
                   <Text color="secondary">
-                    Where the ERP disagrees with paperwork, suppliers or the launch plan, with proposed
-                    solutions.
+                    Where the ERP disagrees with paperwork, suppliers or the launch plan. Open an issue to see
+                    its solutions and the supplier conversation.
                   </Text>
                 </VStack>
               </StackItem>
               <RiskCheck onFinished={refresh} />
             </HStack>
 
-            {error && (
-              <Banner
-                status="error"
-                title={error}
-                isDismissable
-                onDismiss={() => setError(null)}
-              />
-            )}
+            <VStack gap={4}>
+              <HStack gap={3} vAlign="center" wrap="wrap">
+                <SegmentedControl label="Filter issues" value={filter} onChange={(value) => setFilter(value as "all" | "replied" | Severity)}>
+                  <SegmentedControlItem value="all" label={`All (${openTotal})`} />
+                  <SegmentedControlItem value="critical" label={`Critical (${counts.critical})`} />
+                  <SegmentedControlItem value="warning" label={`Warning (${counts.warning})`} />
+                  <SegmentedControlItem value="info" label={`Info (${counts.info})`} />
+                  <SegmentedControlItem value="replied" label={`Supplier replied (${repliedTotal})`} />
+                </SegmentedControl>
+                <Button label="Resolved" variant={showResolved ? "primary" : "secondary"} onClick={() => setShowResolved((value) => !value)} />
+                <StackItem size="fill">
+                  <TextInput label="Search issues" isLabelHidden type="search" placeholder="Search a part, file or issue" value={query} onChange={setQuery} startIcon="search" hasClear />
+                </StackItem>
+              </HStack>
 
-            <Section padding={0}>
-              <VStack gap={4}>
-                <HStack gap={3} vAlign="center" wrap="wrap">
-                  <SegmentedControl
-                    label="Filter issues"
-                    value={filter}
-                    onChange={(value) => setFilter(value as "all" | Severity)}
-                  >
-                    <SegmentedControlItem value="all" label={`All (${openTotal})`} />
-                    <SegmentedControlItem value="critical" label={`Critical (${counts.critical})`} />
-                    <SegmentedControlItem value="warning" label={`Warning (${counts.warning})`} />
-                    <SegmentedControlItem value="info" label={`Info (${counts.info})`} />
-                  </SegmentedControl>
-                  <Button
-                    label="Resolved"
-                    variant={showResolved ? "primary" : "secondary"}
-                    onClick={() => setShowResolved((value) => !value)}
-                  />
-                  <StackItem size="fill">
-                    <TextInput
-                      label="Search issues"
-                      isLabelHidden
-                      type="search"
-                      placeholder="Search a part, file or issue"
-                      value={query}
-                      onChange={setQuery}
-                      startIcon="search"
-                      hasClear
-                    />
-                  </StackItem>
-                </HStack>
-
-                {visible.length ? (
-                  <VStack gap={3}>
-                    {visible.map((n) => (
-                      <NotificationCard
-                        key={n.id}
-                        notification={n}
-                        onStatus={setStatus}
-                        onChanged={() => void refresh()}
-                      />
-                    ))}
-                  </VStack>
-                ) : (
-                  <EmptyState
-                    title={notifications.length ? "Nothing matches this filter." : "No issues yet"}
-                    description={
-                      notifications.length
-                        ? undefined
-                        : "Run the risk check to let an agent go through the data."
-                    }
-                  />
-                )}
-              </VStack>
-            </Section>
+              {visible.length ? (
+                <Grid columns={{ minWidth: 320, max: 3 }} gap={3}>
+                  {visible.map((n) => (
+                    <IssueSummary key={n.id} notification={n} thread={threads[n.id]} />
+                  ))}
+                </Grid>
+              ) : (
+                <EmptyState
+                  title={notifications.length ? "Nothing matches this filter." : "No issues yet"}
+                  description={notifications.length ? undefined : "Run the risk check to let an agent go through the data."}
+                />
+              )}
+            </VStack>
           </VStack>
         </LayoutContent>
       }
@@ -523,8 +488,7 @@ function RiskCheck({ onFinished }: { onFinished: () => Promise<void> }) {
     }
   }
 
-  const when = (value: string | null | undefined) =>
-    value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+  const when = clockTime;
   const status = running
     ? `Running since ${when(run?.started_at)} · takes a few minutes`
     : run?.status === "done"
@@ -535,7 +499,7 @@ function RiskCheck({ onFinished }: { onFinished: () => Promise<void> }) {
 
   return (
     <VStack gap={1} hAlign="end">
-      <Button
+      <LoadingButton
         label={running ? "Checking…" : "Run risk check"}
         variant="secondary"
         isLoading={running}
@@ -637,197 +601,77 @@ function NotificationBell({ notifications }: { notifications: Notification[] }) 
   );
 }
 
-/** Display one notification: what differs, why it matters, how to solve it. */
-function NotificationCard({
-  notification: n,
-  onStatus,
-  onChanged,
-}: {
-  notification: Notification;
-  onStatus: (n: Notification, status: string) => void;
-  onChanged: () => void;
-}) {
+/** The figures to show big: the agent's facts, else the ERP and actual values. */
+function factsOf(n: Notification): Fact[] {
+  if (n.data.facts?.length) return n.data.facts;
+  const attr = n.attr.replace(/_/g, " ");
+  return [
+    n.erp_val ? { label: `ERP · ${attr}`, value: n.erp_val } : null,
+    n.customer_val ? { label: "Actual", value: n.customer_val } : null,
+  ].filter((fact): fact is Fact => fact !== null);
+}
+
+/** Small card for the issue list: severity, headline, key figures and where the supplier
+ * conversation stands; opens the issue page (on the conversation when the supplier replied). */
+function IssueSummary({ notification: n, thread, rank }: { notification: Notification; thread?: ThreadSummary; rank?: number }) {
   const severity = severityOf(n);
   const status = n.data.status ?? "open";
-  const refs = n.data.refs ?? [];
   const kind = (n.data.kind ?? "").replace(/_/g, " ");
-
+  const todo = openSolutions(n);
+  const conversation = threadState(thread);
+  const replied = thread?.last_direction === "in";
   return (
-    <Card id={`n-${n.id}`} padding={4} elevation="low" variant={status === "resolved" ? "muted" : "default"}>
-      <VStack gap={3}>
-        <HStack gap={3} vAlign="start" wrap="wrap">
-          <StackItem size="fill">
-            <VStack gap={1}>
-              <HStack gap={2} vAlign="center">
-                <StatusDot variant={severityDot(severity)} label={severity} />
-                <Text type="supporting" color="secondary">
-                  {severity}
-                  {kind ? ` · ${kind}` : ""}
-                </Text>
-              </HStack>
-              <Heading level={3}>{n.data.title || `${n.attr} mismatch`}</Heading>
-            </VStack>
-          </StackItem>
+    <a href={issueHref(n.id, replied ? "conversation" : "overview")} className="issue-link">
+      {/* Every card fills its grid row; header, headline, two figures, then a footer pinned to the bottom */}
+      <Card padding={4} elevation="low" height="100%" variant={status === "resolved" ? "muted" : "default"}>
+        <VStack gap={3} height="100%">
           <HStack gap={2} vAlign="center">
-            <Badge label={status.replace("_", " ")} variant={severityVariant(severity)} />
-            <Button
-              label={status === "resolved" ? "Reopen" : "Resolve"}
-              variant="secondary"
-              size="sm"
-              onClick={() => onStatus(n, status === "resolved" ? "open" : "resolved")}
-            />
-          </HStack>
-        </HStack>
-
-        {(n.erp_val || n.customer_val) && (
-          <HStack gap={4} wrap="wrap">
-            <VStack gap={0}>
-              <Text type="supporting" color="secondary">
-                ERP · {n.attr.replace(/_/g, " ")}
+            {rank !== undefined && (
+              <Text weight="semibold" color="secondary" hasTabularNumbers>
+                #{rank}
               </Text>
-              <Text weight="semibold">{n.erp_val ?? "–"}</Text>
-            </VStack>
-            <VStack gap={0}>
-              <Text type="supporting" color="secondary">
-                Actual
+            )}
+            <Badge label={severity} variant={severityVariant(severity)} />
+            {kind && (
+              <Text type="supporting" color="secondary" maxLines={1}>
+                {kind}
               </Text>
-              <Text weight="semibold">{n.customer_val ?? "–"}</Text>
-            </VStack>
+            )}
           </HStack>
-        )}
-
-        {n.data.details && <Text color="secondary">{n.data.details}</Text>}
-        {(n.data.solutions ?? []).length > 0 && <SolutionList notification={n} onChanged={onChanged} />}
-
-        <HStack gap={3} vAlign="center" wrap="wrap">
-          {refs.length > 0 && (
-            <Text type="supporting" color="secondary">
-              {refs.length} {refs.length === 1 ? "source" : "sources"}: {refs.join(", ")}
-            </Text>
-          )}
-          <Text type="supporting" color="secondary">
-            Last seen {localTime(n.seen_at)}
-            {n.data.status_note ? ` · ${n.data.status_note}` : ""}
+          <Text weight="medium" maxLines={2}>
+            {n.data.headline || issueTitle(n)}
           </Text>
-        </HStack>
-      </VStack>
-    </Card>
-  );
-}
-
-const SOLUTION_KIND: Record<Solution["kind"], string> = {
-  email: "Email",
-  claim: "Claim",
-  internal: "Internal",
-  decision: "Decision",
-};
-
-/** Proposed solutions of a notification; email solutions open a review popup. */
-function SolutionList({ notification, onChanged }: { notification: Notification; onChanged: () => void }) {
-  const [open, setOpen] = useState<number | null>(null);
-  const solutions = notification.data.solutions ?? [];
-
-  return (
-    <VStack gap={2}>
-      <Heading level={4}>How to solve it</Heading>
-      <List density="compact" listStyle="decimal" hasDividers>
-        {solutions.map((solution, index) => (
-          <ListItem
-            key={index}
-            label={solution.title}
-            description={
-              <VStack gap={1}>
-                <Text type="supporting">{solution.description}</Text>
-                <Text type="supporting" color="secondary">
-                  {[solution.owner, solution.deadline && `by ${solution.deadline}`, solution.cost]
-                    .filter(Boolean)
-                    .join(" · ")}
+          {factsOf(n)
+            .slice(0, 2)
+            .map((fact) => (
+              <VStack key={fact.label} gap={0}>
+                <Text type="supporting" color="secondary" maxLines={1}>
+                  {fact.label}
                 </Text>
-                {solution.approval && (
-                  <Text type="supporting" color="secondary">
-                    Approval: {solution.approval}
-                  </Text>
-                )}
+                <Text hasTabularNumbers maxLines={2}>
+                  {fact.value}
+                </Text>
               </VStack>
-            }
-            startContent={<Badge label={SOLUTION_KIND[solution.kind] ?? solution.kind} variant="neutral" />}
-            endContent={
-              solution.email ? (
-                <Button
-                  label={solution.status === "sent" ? "Sent" : "Review email"}
-                  variant={solution.status === "sent" ? "secondary" : "primary"}
-                  size="sm"
-                  onClick={() => setOpen(index)}
-                />
-              ) : undefined
-            }
-          />
-        ))}
-      </List>
-      {open !== null && solutions[open] && (
-        <SolutionEmailDialog
-          notification={notification}
-          index={open}
-          solution={solutions[open]}
-          onClose={() => setOpen(null)}
-          onSent={() => {
-            setOpen(null);
-            onChanged();
-          }}
-        />
-      )}
-    </VStack>
-  );
-}
-
-/** Popup to review, edit, approve and send a solution's email. */
-function SolutionEmailDialog({
-  notification,
-  index,
-  solution,
-  onClose,
-  onSent,
-}: {
-  notification: Notification;
-  index: number;
-  solution: Solution;
-  onClose: () => void;
-  onSent: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const sent = solution.status === "sent" ? solution.sent_email : undefined;
-  const email = sent ?? solution.email;
-  if (!email) return null;
-  const draft: Draft = { to: email.to, cc: email.cc ?? [], subject: email.subject, body: email.body };
-
-  async function send(edited: Draft, approvedBy?: string) {
-    setBusy(true);
-    setError("");
-    try {
-      await sendSolutionEmail(notification.id, index, { ...edited, approved_by: approvedBy });
-      onSent();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The email could not be sent.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && !busy && onClose()} width={680} maxHeight="88dvh" purpose="form" padding={0}>
-      <ComposeWindow
-        context={notification.data.title ?? ""}
-        title={solution.title}
-        draft={draft}
-        translation={solution.email?.translation}
-        approval={sent ? undefined : solution.approval}
-        busy={busy}
-        error={error}
-        onClose={onClose}
-        onSend={sent ? undefined : (edited, approvedBy) => void send(edited, approvedBy)}
-        status={sent ? `Sent${solution.approved_by ? ` · approved by ${solution.approved_by}` : ""}` : undefined}
-      />
-    </Dialog>
+            ))}
+          {(n.data.suppliers ?? []).length > 0 && <SupplierChain suppliers={n.data.suppliers ?? []} />}
+          <StackItem size="fill" />
+          <Divider />
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            {status === "resolved" ? (
+              <Badge label="resolved" variant="success" />
+            ) : conversation ? (
+              <Badge label={conversation.label} variant={conversation.variant} />
+            ) : status !== "open" ? (
+              <Badge label={status.replace("_", " ")} variant="neutral" />
+            ) : null}
+            <Text type="supporting" color="secondary">
+              {todo.length ? `${todo.length} ${todo.length === 1 ? "solution" : "solutions"}` : "No open solutions"}
+              {" · "}
+              {localTime(n.seen_at)}
+            </Text>
+          </HStack>
+        </VStack>
+      </Card>
+    </a>
   );
 }

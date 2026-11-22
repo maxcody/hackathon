@@ -1,13 +1,10 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
-from pathlib import Path
 
 import truststore
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.config import settings
@@ -23,6 +20,8 @@ from app.routers import (
     readiness,
     skills,
     solutions,
+    sourcing,
+    threads,
 )
 
 # Trust the OS certificate store, so portal calls work behind TLS-inspecting proxies
@@ -41,8 +40,6 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Hackathon API", lifespan=lifespan)
-static_dir = Path(__file__).parent / "static"
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -51,19 +48,15 @@ app.add_middleware(
 )
 app.include_router(imported.router)
 app.include_router(imports.router)
+app.include_router(threads.router)  # before notifications: /notifications/threads
 app.include_router(notifications.router)
 app.include_router(solutions.router)
 app.include_router(readiness.router)
 app.include_router(inbox.router)
 app.include_router(dataset.router)
 app.include_router(skills.router)
+app.include_router(sourcing.router)
 app.include_router(agent_workspace.router)
-
-
-@app.get("/", include_in_schema=False)
-async def home() -> FileResponse:
-    """Serve the built React dashboard (``npm run build`` in ``frontend/``)."""
-    return FileResponse(static_dir / "react" / "index.html")
 
 
 @app.get("/health")

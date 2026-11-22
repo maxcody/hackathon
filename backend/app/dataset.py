@@ -10,7 +10,7 @@ next to them and the documents (scans, order confirmations) behind them.
 import csv
 import re
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.data import data_root, read_csv
 from app.readiness import _qty, compute
+from app.sourcing import supplier_folders
 
 OPEN_PO = {"open", "awaiting_approval"}  # PO lines still to be delivered
 RECENT_DAYS = 21  # receipts shown: the last three weeks before launch
@@ -114,13 +115,7 @@ def _latest(pattern: str) -> Path | None:
 
 def _profiles() -> list[dict[str, str]]:
     """Every supplier profile row."""
-    rows = []
-    for path in sorted((data_root() / "suppliers").glob("*/profile.csv")):
-        with path.open(encoding="utf-8-sig") as f:
-            row = next(csv.DictReader(f), None)
-        if row:
-            rows.append(row)
-    return rows
+    return [s.profile for s in supplier_folders()]
 
 
 def _launch_date() -> str:
@@ -230,12 +225,9 @@ def _part_suppliers() -> dict[str, list[str]]:
 
 def _suppliers() -> tuple[str, list[dict]]:
     rows = []
-    for p in _profiles():
-        folder = next((data_root() / "suppliers").glob(f"{p['supplier_id']}_*"))
-        parts = []
-        if (folder / "components.csv").exists():
-            with (folder / "components.csv").open(encoding="utf-8-sig") as f:
-                parts = [r["component_id"] for r in csv.DictReader(f)]
+    for s in supplier_folders():
+        p = s.profile
+        parts = [r["component_id"] for r in s.components]
         rows.append(
             {
                 "supplier_id": p["supplier_id"],
@@ -501,3 +493,31 @@ def resolve(rel: str) -> Path:
     if not path.is_relative_to(root) or not path.is_file():
         raise FileNotFoundError(rel)
     return path
+
+
+class FileInfo(BaseModel):
+    """One file in the data folder."""
+
+    path: str  # relative to the data folder; what /dataset/file takes
+    name: str
+    folder: str
+    size: int
+    modified: str
+
+
+def files() -> list[FileInfo]:
+    """Every file in the data folder, grouped by folder, newest first within it."""
+    root = data_root().resolve()
+    found = [p for p in root.rglob("*") if p.is_file() and not p.name.startswith(".")]
+    found.sort(key=lambda p: -p.stat().st_mtime)
+    found.sort(key=lambda p: p.parent)
+    return [
+        FileInfo(
+            path=p.relative_to(root).as_posix(),
+            name=p.name,
+            folder=p.parent.relative_to(root).as_posix(),
+            size=p.stat().st_size,
+            modified=datetime.fromtimestamp(p.stat().st_mtime, UTC).isoformat(),
+        )
+        for p in found
+    ]

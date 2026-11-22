@@ -18,6 +18,12 @@ EVENTS = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def fresh_cache() -> None:
+    """Each test starts without cached Brevo/Gmail results."""
+    inbox.clear_cache()
+
+
 @pytest.fixture
 def setup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A sent log with two mails and a fake Brevo events API."""
@@ -104,6 +110,53 @@ def test_received_mail_is_merged_and_errors_are_reported(
         "EmailSettings",
         lambda: EmailSettings(_env_file=None, gmail_script_token="wrong", **settings),
     )
-    box = inbox.mailbox()
+    box = inbox.mailbox(refresh=True)  # the cache would still hold the good result
     assert box.incoming_error and "forbidden" in box.incoming_error
     assert len(box.messages) == 2  # sent mail still shown
+
+
+def test_remote_sources_are_cached_until_refresh(
+    setup: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[str] = []
+    request = httpx.Request("GET", "https://api.brevo.com")
+
+    def counting_get(url: str, **kwargs: object) -> httpx.Response:
+        calls.append(url)
+        return httpx.Response(200, json={"events": EVENTS}, request=request)
+
+    monkeypatch.setattr(inbox.httpx, "get", counting_get)
+    inbox.mailbox()
+    box = inbox.mailbox()
+    assert len(calls) == 1  # second load reused the Brevo statuses
+    assert box.messages[0].status == "hardBounces"
+
+    # The sent log is local and read fresh: a newly sent mail shows at once
+    log = tmp_path / "sent.jsonl"
+    new = {
+        "sent_at": "2026-11-21T12:00",
+        "message_id": "<c>",
+        "to": ["x@y"],
+        "subject": "C",
+        "body": "3",
+    }
+    with log.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(new) + "\n")
+    assert inbox.mailbox().messages[0].subject == "C"
+    assert len(calls) == 1
+
+    inbox.mailbox(refresh=True)
+    assert len(calls) == 2
+
+
+def test_failures_are_not_cached(setup: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    request = httpx.Request("GET", "https://api.brevo.com")
+    responses = iter(
+        [
+            httpx.Response(500, request=request),
+            httpx.Response(200, json={"events": EVENTS}, request=request),
+        ]
+    )
+    monkeypatch.setattr(inbox.httpx, "get", lambda *a, **k: next(responses))
+    assert inbox.mailbox().status_source is None  # outage: mail shown without statuses
+    assert inbox.mailbox().status_source == "brevo"  # retried on the next load

@@ -5,7 +5,6 @@ The ERP can be wrong (that is what the risk check finds), so the dashboard
 shows these figures next to the open notifications for the same parts.
 """
 
-import csv
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -13,6 +12,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from app.data import data_root, read_csv, read_workbook
+from app.sourcing import supplier_folders
 
 SITE = "DC-HAM"
 SOURCES = [
@@ -93,18 +93,12 @@ def _suppliers() -> tuple[dict[str, list[str]], dict[str, str]]:
     """
     found: dict[str, list[str]] = defaultdict(list)
     fitted: dict[str, str] = {}
-    for folder in sorted((data_root() / "suppliers").glob("*")):
-        components, profile = folder / "components.csv", folder / "profile.csv"
-        if not (components.exists() and profile.exists()):
-            continue
-        with profile.open(encoding="utf-8-sig") as f:
-            name = next(csv.DictReader(f), {}).get("name") or folder.name
-        with components.open(encoding="utf-8-sig") as f:
-            for row in csv.DictReader(f):
-                found[row["component_id"]].append(name)
-                into = re.search(r"fitted [^;]*?into ([\w-]+)", row.get("note", ""))
-                if into:
-                    fitted[row["component_id"]] = into.group(1)
+    for supplier in supplier_folders():
+        for row in supplier.components:
+            found[row["component_id"]].append(supplier.profile["name"])
+            into = re.search(r"fitted [^;]*?into ([\w-]+)", row.get("note", ""))
+            if into:
+                fitted[row["component_id"]] = into.group(1)
     return found, fitted
 
 

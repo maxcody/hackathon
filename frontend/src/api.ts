@@ -1,8 +1,10 @@
 import type {
   AgentSummary,
   Dataset,
+  DataFile,
   DatasetInfo,
   Lookups,
+  MailMessage,
   Mailbox,
   MasterImportSummary,
   Notification,
@@ -10,7 +12,9 @@ import type {
   Readiness,
   SheetImportSummary,
   SkillRun,
+  Source,
   SyncResult,
+  ThreadSummary,
   WorkspaceAgent,
 } from "./types";
 
@@ -52,9 +56,45 @@ export function sendSolutionEmail(
   return request(`/notifications/${notificationId}/solutions/${index}/send`, json("POST", email));
 }
 
-/** Sent (and, once connected, received) emails with delivery status. */
-export function getMailbox(): Promise<Mailbox> {
-  return request("/inbox");
+/** Message count and last writer of every issue thread, by notification id. */
+export function getThreadSummaries(): Promise<Record<string, ThreadSummary>> {
+  return request("/notifications/threads");
+}
+
+/** The emails of one issue, oldest first; `refresh` re-reads Gmail. */
+export function getThread(notificationId: number, refresh = false): Promise<MailMessage[]> {
+  return request(`/notifications/${notificationId}/thread${refresh ? "?refresh=true" : ""}`);
+}
+
+/** Send a reply or follow-up in an issue's thread; returns the updated thread. */
+export function sendFollowUp(
+  notificationId: number,
+  email: { to: string[]; cc: string[]; subject: string; body: string; approved_by?: string },
+): Promise<MailMessage[]> {
+  return request(`/notifications/${notificationId}/thread`, json("POST", email));
+}
+
+/**
+ * Let the agent write the next email of an issue's thread, or refine the current draft.
+ *
+ * @param draft - Recipient; with `feedback` and a body, the draft to rewrite.
+ * @returns The new subject and body; nothing is sent.
+ */
+export function draftEmail(
+  notificationId: number,
+  draft: { to: string; subject?: string; body?: string; feedback?: string },
+): Promise<{ subject: string; body: string }> {
+  return request(`/notifications/${notificationId}/thread/draft`, json("POST", draft));
+}
+
+/** Suppliers that can deliver a part, best first. */
+export function getSourcing(componentId: string): Promise<Source[]> {
+  return request(`/sourcing/${encodeURIComponent(componentId)}`);
+}
+
+/** Load the inbox; `refresh` makes the backend refetch Brevo and Gmail instead of using its short cache. */
+export function getMailbox(refresh = false): Promise<Mailbox> {
+  return request(refresh ? "/inbox?refresh=true" : "/inbox");
 }
 
 /** Drop an email's analysis so the agent analyzes it again on its next cycle. */
@@ -66,6 +106,11 @@ export async function reanalyzeEmail(messageId: string): Promise<void> {
 /** The datasets the Data tab offers. */
 export function listDatasets(): Promise<DatasetInfo[]> {
   return request("/dataset");
+}
+
+/** Every file in the data folder. */
+export function listFiles(): Promise<DataFile[]> {
+  return request("/dataset/files");
 }
 
 /** Part and supplier names, documents behind ids, and the open orders. */

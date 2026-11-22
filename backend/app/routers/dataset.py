@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
 from app import dataset
-from app.dataset import Dataset, DatasetInfo, Lookups
+from app.dataset import Dataset, DatasetInfo, FileInfo, Lookups
 
 router = APIRouter(prefix="/dataset", tags=["dataset"])
 
@@ -20,6 +20,12 @@ def list_datasets() -> list[DatasetInfo]:
 async def get_lookups() -> Lookups:
     """Names of parts and suppliers, and documents behind delivery notes and POs."""
     return await run_in_threadpool(dataset.lookups)
+
+
+@router.get("/files")
+def list_files() -> list[FileInfo]:
+    """Every file in the data folder, for the Files page."""
+    return dataset.files()
 
 
 @router.get("/file")

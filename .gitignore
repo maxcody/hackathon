@@ -47,3 +47,5 @@ build/
 
 # Astryx theme editor preview pages (regenerated on every theme change)
 frontend/themes/*/*.html
+
+*.tsbuildinfo

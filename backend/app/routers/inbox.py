@@ -3,6 +3,9 @@ received mail from the team Gmail via the Apps Script in ``scripts/gmail_inbox.g
 """
 
 import json
+import threading
+import time
+from collections.abc import Callable
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -10,8 +13,44 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from app import mail_analysis
+from app.config import settings as app_settings
 from app.mail_analysis import MailAnalysis
 from app.mailer import SENT_LOG, EmailSettings
+
+# Remote results (Brevo statuses, received Gmail) by key: (fetched at, value)
+_cache: dict[str, tuple[float, object]] = {}
+_cache_lock = threading.Lock()
+
+
+def _cached[T](key: str, fetch: Callable[[], T], refresh: bool = False) -> T:
+    """Return ``fetch()``'s result, reusing it for ``inbox_cache_seconds``.
+
+    Failures are not cached, so an outage is retried on the next call.
+
+    Args:
+        key: Cache slot, one per remote source.
+        fetch: Fetches the fresh value; may raise.
+        refresh: Skip the cached value and fetch again.
+
+    Returns:
+        The cached or freshly fetched value.
+    """
+    with _cache_lock:
+        hit = _cache.get(key)
+    fresh = hit and time.monotonic() - hit[0] < app_settings.inbox_cache_seconds
+    if fresh and not refresh:
+        return hit[1]  # type: ignore[index,return-value]
+    value = fetch()
+    with _cache_lock:
+        _cache[key] = (time.monotonic(), value)
+    return value
+
+
+def clear_cache() -> None:
+    """Forget cached remote results (used by tests)."""
+    with _cache_lock:
+        _cache.clear()
+
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 
@@ -89,17 +128,28 @@ def _received(settings: EmailSettings) -> list[MailMessage]:
     payload = response.json()
     if "error" in payload:
         raise ValueError(payload["error"])
-    return [MailMessage(direction="in", **message) for message in payload["messages"]]
+    # Gmail can list the same message twice (e.g. sent to the address in To and Cc);
+    # keep one per Message-ID so every row in the inbox is distinct and clickable.
+    unique = {m["message_id"]: m for m in payload["messages"]}
+    return [MailMessage(direction="in", **message) for message in unique.values()]
 
 
-def mailbox() -> Mailbox:
-    """Collect sent mail and, if Brevo is configured, its delivery status."""
+def mailbox(refresh: bool = False) -> Mailbox:
+    """Collect sent mail and, if Brevo is configured, its delivery status.
+
+    The sent log and analyses are local and always read fresh; the remote Brevo
+    statuses and received Gmail are cached briefly (see ``_cached``).
+
+    Args:
+        refresh: Fetch the remote sources again instead of using the cache.
+    """
     settings = EmailSettings()
     statuses: dict[str, tuple[str, str]] = {}
     source = None
     if settings.brevo_api_key:
         try:
-            statuses, source = _brevo_status(settings), "brevo"
+            statuses = _cached("brevo", lambda: _brevo_status(settings), refresh)
+            source = "brevo"
         except httpx.HTTPError:
             source = None  # show the mail without statuses rather than fail
     messages = [
@@ -121,7 +171,9 @@ def mailbox() -> Mailbox:
     incoming_error = None
     if configured:
         try:
-            messages += _received(settings)
+            received = _cached("gmail", lambda: _received(settings), refresh)
+            # Copies, so attaching analyses below never edits the cached messages
+            messages += [message.model_copy() for message in received]
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as error:
             incoming_error = f"Could not read the Gmail inbox: {error}"
     messages.sort(key=lambda m: m.at, reverse=True)
@@ -151,6 +203,9 @@ async def reanalyze(message_id: str) -> None:
 
 
 @router.get("")
-async def get_inbox() -> Mailbox:
-    """Sent mail with delivery status, plus received mail when Gmail is connected."""
-    return await run_in_threadpool(mailbox)
+async def get_inbox(refresh: bool = False) -> Mailbox:
+    """Sent mail with delivery status, plus received mail when Gmail is connected.
+
+    ``refresh=true`` (the Refresh button) skips the short cache of remote sources.
+    """
+    return await run_in_threadpool(mailbox, refresh)

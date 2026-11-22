@@ -84,11 +84,20 @@ For each problem call `report_notification` with:
 - `kind` and `subject`: as above
 - `attr`: what differs (`quantity`, `eta`, `price`, `revision`, `bank_details`, ...)
 - `erp_val` / `customer_val`: the ERP value and the paper/supplier/real-world value, as text
+- `headline`: the problem in one plain sentence for a manager, no ids or
+  jargon, e.g. "Art books will not arrive on time". The card shows it first.
+- `facts`: 2-4 key figures as label and value, the ones a manager needs at a
+  glance, e.g. `Needed: 80,000`, `In stock: 18,000`, `Missing: 62,000`,
+  `Expected delivery: Mon 23 Nov`. For a shortage always include the total
+  needed, so in stock + missing adds up to it.
 - `title`: one line a buyer understands, e.g. "Art book receipt booked 80,000, delivery note says 8,000"
 - `severity`: `critical` (blocks or endangers launch, or fraud risk),
   `warning` (needs action today), `info` (worth knowing)
-- `details`: the evidence and the impact on the launch, with numbers
-- `refs`: every file path you used
+- `details`: the evidence and the impact on the launch, with numbers (shown
+  collapsed, so the headline, facts and solutions must stand on their own)
+- `refs`: only the files that actually contain the figures you report, one
+  path each; not every file you read. The card links each one so a person can
+  open it and check
 - `solutions`: see step 5
 
 Do not change the status of notifications people set to `resolved` or
@@ -99,7 +108,10 @@ call `set_notification_status` with `resolved` and a short note.
 
 Give every `critical` and `warning` problem 1-3 concrete solutions, best first.
 A good solution closes the gap before the deadline; say by how much if it only
-closes part of it. Look for solutions in the data, for example:
+closes part of it. In each description wrap the facts a person must not miss
+(supplier, quantity, date, cost) in `**double asterisks**`, e.g. "Use the
+**18,000** spare cards from **Hwaseong Memory**, available until **Mon 23 Nov**";
+the dashboard highlights them. Look for solutions in the data, for example:
 
 - supplier offers and capacity in `suppliers/*/notices/*` (express or rush
   service, finished-goods overruns in stock, alternative parts or closures)
@@ -131,7 +143,13 @@ Each solution has a `kind`:
   confirmation. Write it as a decision, not an inquiry: when the data shows an
   offer or stock is available and the time is short, place the order or request
   ("please load and ship 8,000 ... today"), so one click on Send sets it in
-  motion.
+  motion. Write it like a real business email, not a single block: a greeting
+  with the contact's first name ("Dear Rohan,"); one short paragraph on what
+  happened (with PO, part, quantity); the requests as a numbered list when
+  there is more than one; one paragraph with the deadline and why it matters
+  (e.g. "to pack them before the 20:00 launch") and the request for written
+  confirmation; then "Thank you," and the signature on its own lines. Separate
+  paragraphs with blank lines.
 - `claim`: complaint or credit note for wrong, short or rejected goods; attach
   an `email` the same way when it goes to a supplier.
 - `internal`: someone at Soony acts (book a pickup or dock slot, recount stock,
@@ -159,6 +177,27 @@ Rules from `soony/context/approval_policy_*`:
   Supplier Quality Lead
 - note when the responsible role is vacant (e.g. Category Lead for
   Collector's Items) and who covers it
+
+### Alternative suppliers
+
+One supplier often cannot close a gap alone. For every shortage or late
+delivery of a part, call `sourcing_options` with its component id: it ranks
+the primary supplier, listed second sources, then same-category suppliers
+that do not make the part yet. The issue line from `list_notifications` shows
+`suppliers: ...` already asked; never propose a supplier marked `declined`.
+
+- Critical and less than 24 hours to launch: ask the primary and the best
+  second source at the same time. Two `email` solutions, the backup with
+  `stage: "parallel"`, quantities split so together they cover the gap.
+- Otherwise: the primary first (`stage: "now"`), the second source as plan B
+  (`stage: "if_declined"`) with its own finished draft.
+- Only one supplier lists the part: add a same-category supplier as plan B
+  (`kind: "decision"` or `email` asking for a sample and capacity); it is not
+  qualified, so `approval` names the PP-07 role and a sample is required.
+- A conditional supplier (e.g. second source on conditional release) always
+  needs `approval` per PP-07.
+- Set `supplier_id` on every supplier solution, and use each supplier's own
+  contact, language, price and lead time from `sourcing_options`.
 
 Never send email during a risk check: the dashboard shows each email solution
 in a popup where a person reviews, approves and sends it. Never propose

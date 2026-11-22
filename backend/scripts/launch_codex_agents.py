@@ -67,9 +67,10 @@ def run_agent(
         command.append("--worktree")
     if model:
         command.extend(["--model", model])
-    with (output / "events.jsonl").open("wb") as events, (output / "stderr.log").open(
-        "wb"
-    ) as errors:
+    with (
+        (output / "events.jsonl").open("wb") as events,
+        (output / "stderr.log").open("wb") as errors,
+    ):
         try:
             return subprocess.run(
                 [*command, "-"],

@@ -580,25 +580,6 @@
     --astryx-section-padding: var(--spacing-3);
   }
 
-  .astryx-side-nav {
-    background-color: #1e3028;
-    --color-text-primary: #eaf0e9;
-    color: #eaf0e9;
-  }
-
-  .astryx-side-nav-item {
-    color: #dbe6dc;
-  }
-
-  .astryx-side-nav-item[data-selected="selected"] {
-    background-color: #344d3d;
-    color: #ffffff;
-  }
-
-  .astryx-app-shell-sidenav {
-    --color-text-primary: #eaf0e9;
-  }
-
   .astryx-text[data-color="primary"] { color: var(--color-text-primary); }
 
   .astryx-heading[data-color="primary"] { color: var(--color-text-primary); }

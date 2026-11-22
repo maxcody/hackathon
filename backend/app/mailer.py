@@ -1,4 +1,4 @@
-"""Send plain-text email for agents and the dashboard (Brevo API or Gmail SMTP).
+"""Send plain-text email for agents and the dashboard (SMTP, Apps Script or Brevo).
 
 Settings come from ``backend/.env``: ``SMTP_USER`` (the sender) plus either
 ``BREVO_API_KEY`` (Brevo's HTTPS API, works where SMTP is blocked) or
@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from email.message import EmailMessage
 from email.utils import make_msgid
 from pathlib import Path
+from typing import Literal
 
 import httpx
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -35,10 +36,16 @@ class EmailSettings(BaseSettings):
     smtp_port: int = 465
     smtp_user: str | None = None
     smtp_app_password: str | None = None
-    # Comma-separated; defaults to the hackathon's supplier sandbox domain.
-    email_allowed_domains: str = "suppliers.juliansibbing.de"
+    # Comma-separated; defaults to the hackathon's supplier sandbox domain and GMX.
+    email_allowed_domains: str = "suppliers.juliansibbing.de,gmx.de,gmx.net,gmx.com"
     # Brevo's HTTPS API, used instead of SMTP when set (works where SMTP is blocked)
     brevo_api_key: str | None = None
+    # How mail goes out: "smtp" (Gmail, From stays SMTP_USER so replies come back),
+    # "gmail_script" (same Gmail account via the Apps Script web app over HTTPS, for
+    # networks that block SMTP) or "brevo". Empty: Brevo when BREVO_API_KEY is set.
+    # Brevo rewrites a free-mail sender like @gmail.com to an @…brevosend.com address
+    # that cannot receive replies.
+    mail_transport: Literal["smtp", "gmail_script", "brevo"] | None = None
     # Received mail: the Apps Script web app in scripts/gmail_inbox.gs
     gmail_script_url: str | None = None
     gmail_script_token: str | None = None
@@ -80,6 +87,50 @@ def send_via_brevo(message: EmailMessage, settings: EmailSettings) -> str:
             response=response,
         )
     return response.json().get("messageId", message["Message-ID"])
+
+
+def send_via_gmail_script(message: EmailMessage, settings: EmailSettings) -> str:
+    """Send ``message`` from the Gmail account through the Apps Script web app.
+
+    Args:
+        message: The composed message.
+        settings: Settings holding ``gmail_script_url`` and ``gmail_script_token``.
+
+    Returns:
+        Gmail's Message-ID.
+
+    Raises:
+        httpx.HTTPError: If the script is unreachable.
+        MailError: If the script refuses the message.
+    """
+
+    def split(header: str) -> list[str]:
+        return [a.strip() for a in (message[header] or "").split(",") if a.strip()]
+
+    response = httpx.post(
+        settings.gmail_script_url,
+        json={
+            "token": settings.gmail_script_token,
+            "to": split("To"),
+            "cc": split("Cc"),
+            "subject": message["Subject"],
+            "body": message.get_content(),
+            "reply_to": message["Reply-To"] or "",
+        },
+        follow_redirects=True,  # Apps Script answers via a googleusercontent redirect
+        timeout=60,
+    )
+    response.raise_for_status()
+    try:
+        result = response.json()
+    except ValueError as error:
+        raise MailError(
+            "the Apps Script did not answer with JSON; deploy the new version of "
+            "scripts/gmail_inbox.gs (it needs doPost)"
+        ) from error
+    if "error" in result:
+        raise MailError(f"Apps Script: {result['error']}")
+    return result.get("message_id") or message["Message-ID"]
 
 
 def blocked_recipients(recipients: list[str], settings: EmailSettings) -> list[str]:
@@ -129,10 +180,18 @@ def deliver(
             sending failed.
     """
     settings = settings or EmailSettings()
-    if not settings.smtp_user or not (
-        settings.brevo_api_key or settings.smtp_app_password
-    ):
-        raise MailError("set SMTP_USER and BREVO_API_KEY (or SMTP_APP_PASSWORD)")
+    use_brevo = settings.mail_transport == "brevo" or (
+        settings.mail_transport is None and bool(settings.brevo_api_key)
+    )
+    if not settings.smtp_user:
+        raise MailError("set SMTP_USER")
+    if use_brevo and not settings.brevo_api_key:
+        raise MailError("MAIL_TRANSPORT=brevo needs BREVO_API_KEY")
+    use_script = settings.mail_transport == "gmail_script"
+    if use_script and not (settings.gmail_script_url and settings.gmail_script_token):
+        raise MailError("MAIL_TRANSPORT=gmail_script needs GMAIL_SCRIPT_URL and _TOKEN")
+    if not (use_brevo or use_script) and not settings.smtp_app_password:
+        raise MailError("sending over SMTP needs SMTP_APP_PASSWORD")
     cc = cc or []
     if not to:
         raise MailError("no recipients")
@@ -152,8 +211,11 @@ def deliver(
     message.set_content(body)
 
     try:
-        if settings.brevo_api_key:
+        if use_brevo:
             message.replace_header("Message-ID", send_via_brevo(message, settings))
+        elif use_script:
+            sent_id = send_via_gmail_script(message, settings)
+            message.replace_header("Message-ID", sent_id)
         else:
             with smtplib.SMTP_SSL(
                 settings.smtp_host, settings.smtp_port, timeout=30

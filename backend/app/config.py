@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     # Let an agent analyze each newly received email (Inbox tab), checked periodically
     mail_triage: bool = True
     mail_triage_interval_seconds: PositiveInt = 120
+    # Inbox tab: how long Brevo statuses and received Gmail are reused before refetching
+    inbox_cache_seconds: PositiveInt = 60
     # SQLite file holding the dashboard's chat agents and their conversations
     agents_db: Path = (
         Path(__file__).resolve().parents[2] / ".local_data" / "agents.sqlite3"

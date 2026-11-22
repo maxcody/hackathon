@@ -7,50 +7,6 @@
       "thing": "accent",
       "value": "#487553",
       "source": "dial"
-    },
-    {
-      "thing": "background-color",
-      "value": "#1e3028",
-      "source": "property",
-      "on": "side-nav"
-    },
-    {
-      "thing": "--color-text-primary",
-      "value": "#eaf0e9",
-      "source": "token",
-      "on": "side-nav"
-    },
-    {
-      "thing": "background-color",
-      "value": "#344d3d",
-      "source": "property",
-      "on": "side-nav-item",
-      "state": "selected"
-    },
-    {
-      "thing": "color",
-      "value": "#dbe6dc",
-      "source": "property",
-      "on": "side-nav-item"
-    },
-    {
-      "thing": "color",
-      "value": "#ffffff",
-      "source": "property",
-      "on": "side-nav-item",
-      "state": "selected"
-    },
-    {
-      "thing": "color",
-      "value": "#eaf0e9",
-      "source": "property",
-      "on": "side-nav"
-    },
-    {
-      "thing": "--color-text-primary",
-      "value": "#eaf0e9",
-      "source": "token",
-      "on": "app-shell-sidenav"
     }
   ],
   "lifted": [],

@@ -39,12 +39,35 @@ Call `list_notifications` and find the notifications this email is about
   add it as an `email` solution with a finished draft on that notification
   (same language rules as the risk-check skill). Never send email yourself.
 
+### When a supplier cannot (fully) deliver
+
+Classify the answer as `outcome`: `confirmed` (everything we asked), `partial`
+(only part, or later than needed), `declined` (cannot), `question` (asks us
+something) or `other`. For each related notification call
+`set_supplier_state` with the supplier, the state (`confirmed`, `partial`,
+`declined`) and what it can deliver, e.g. "4,000 by 18:00".
+
+On `declined` or `partial`, draft plan B right away (a person still clicks Send):
+
+1. Work out the quantity still missing.
+2. Call `sourcing_options` for the part and take the best supplier that has
+   not declined (see `suppliers:` in `list_notifications`).
+3. Re-report the notification with a new `email` solution to that supplier
+   (`stage: "now"`, `supplier_id` set) for the missing quantity, with the
+   same draft rules as the risk check (its language, deadline, DC-HAM
+   address). Conditional or same-category suppliers need `approval` (PP-07).
+4. Put the step in `details`, e.g. "Hwaseong declined 4,000; asking Boise Semi."
+
+If no supplier is left, add a `decision` solution instead (pack without the
+part and ship it later, or prioritise orders).
+
 If no notification fits and the email reveals a new problem, report a new one.
 
 ## 3. Record
 
 Call `record_email_analysis` once with the Message-ID exactly as given, a short
 English `summary`, `language`, `translation` (if not English), `commitments`,
-`risks`, one concrete `next_step`, and the `notification_keys` you linked.
+`risks`, one concrete `next_step`, the `notification_keys` you linked, the
+`outcome` and the sender's `supplier_id`.
 
 Reply with one line: what the email means for the launch.

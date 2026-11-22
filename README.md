@@ -3,7 +3,7 @@
 Dashboard and agents for the Lio Hack League case. The backend stores Soony's launch data and the notifications the dashboard shows (see `backend/HOW_IT_WORKS.md`). The analysis runs in Codex agents outside the backend: they read the portal data, write findings as notifications and can email suppliers.
 
 ## How the parts fit
-- **Backend** (`backend/`): Postgres CRUD over products, components, BOM, sheet rows and notifications, plus `/import/sync|master|sheets` to load the portal files. It also serves the built dashboard at `/` and the agent chat at `/api/agent-workspace`.
+- **Backend** (`backend/`): Postgres CRUD over products, components, BOM, sheet rows and notifications, plus `/import/sync|master|sheets` to load the portal files. It also serves the agent chat at `/api/agent-workspace`. The dashboard is a separate server (below).
 - **Dashboard** (`frontend/`): shows the notifications, triggers portal sync and imports, and hosts the **Agents** tab.
 - **Agents**: each dashboard agent is a Codex session with three MCP tools from `backend/scripts/`: `portal` (read portal files), `notifications` (post findings to `/notifications`) and `email` (send mail after confirmation).
 
@@ -46,7 +46,8 @@ npm run dev
 ```
 Open the Vite URL printed in the terminal (normally http://127.0.0.1:5173/). Vite proxies `/api`, `/import` and `/notifications` requests to `http://127.0.0.1:8000`. If the backend is using another port, set the proxy first, for example `$env:VITE_API_PROXY_TARGET="http://127.0.0.1:8001"`.
 
-To build the React dashboard for FastAPI, run `npm run build` from `frontend/`. Then open http://localhost:8000/; FastAPI serves the built React app. API docs: http://localhost:8000/docs.
+API docs: http://localhost:8000/docs.
+
 
 ## Agents tab
 
