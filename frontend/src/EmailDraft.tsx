@@ -334,7 +334,7 @@ export function ComposeWindow({
             <Text type="supporting" color="secondary" maxLines={1}>
               {context}
             </Text>
-            <Text weight="semibold">{title}</Text>
+            <Text weight="semibold">{title.replace(/\*\*/g, "")}</Text>
           </VStack>
         </StackItem>
         {status && <Badge label={status} variant="success" />}
@@ -384,8 +384,10 @@ export function ComposeWindow({
 
         {editable && approval && (
           <VStack gap={2}>
-            <Banner status="warning" title={`Requires approval: ${approval}`} />
-            <HStack gap={2} vAlign="end" wrap="wrap">
+            <Text type="supporting" color="secondary">
+              Needs approval from {approval}
+            </Text>
+            <HStack gap={3} vAlign="center" wrap="wrap">
               <CheckboxInput label="Approved by" value={approved} onChange={setApproved} />
               <StackItem size="fill">
                 <TextInput
