@@ -469,27 +469,6 @@ export const linewatchTheme = {
       "base": {
         "padding": "var(--spacing-3)"
       }
-    },
-    "side-nav": {
-      "base": {
-        "backgroundColor": "#1e3028",
-        "--color-text-primary": "#eaf0e9",
-        "color": "#eaf0e9"
-      }
-    },
-    "side-nav-item": {
-      "base": {
-        "color": "#dbe6dc"
-      },
-      "selected": {
-        "backgroundColor": "#344d3d",
-        "color": "#ffffff"
-      }
-    },
-    "app-shell-sidenav": {
-      "base": {
-        "--color-text-primary": "#eaf0e9"
-      }
     }
   },
   __onDark: {

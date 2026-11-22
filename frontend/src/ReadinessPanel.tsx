@@ -129,7 +129,12 @@ export function ReadinessPanel({ notifications }: { notifications: Notification[
             <Text color="secondary">–</Text>
           ) : (
             <VStack gap={0} hAlign="end">
-              <Text hasTabularNumbers weight="semibold">
+              <Text
+                hasTabularNumbers
+                weight="semibold"
+                color={part.tone === "short" ? "inherit" : "primary"}
+                style={part.tone === "short" ? { color: "var(--color-error)" } : undefined}
+              >
                 {signed(part.balance)}
               </Text>
               {part.tone === "disputed" && (
@@ -200,7 +205,7 @@ export function ReadinessPanel({ notifications }: { notifications: Notification[
           </Text>
         </HStack>
 
-        <Grid columns={{ minWidth: 240, max: 3 }} gap={3}>
+        <Grid columns={{ minWidth: 240, max: Math.max(1, data.editions.length) }} gap={3}>
           {data.editions.map((edition) => {
             const pct = edition.day_one ? Math.min(100, (edition.packed / edition.day_one) * 100) : 0;
             return (

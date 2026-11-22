@@ -1,11 +1,12 @@
 import { Fragment } from "react";
 import { HStack, VStack } from "@astryxdesign/core/Layout";
-import { Heading, Text } from "@astryxdesign/core/Text";
+import { Text } from "@astryxdesign/core/Text";
 import { Link } from "@astryxdesign/core/Link";
 import type { Fact } from "./types";
 
 /**
- * Text where **double asterisks** mark the facts to highlight.
+ * Text where **double asterisks** mark the facts to stand out: they take the
+ * primary text color and a medium weight, so the surrounding text should be secondary.
  *
  * @param text - Plain text, as an agent wrote it.
  */
@@ -14,9 +15,9 @@ export function Rich({ text }: { text: string }) {
     <>
       {text.split(/\*\*(.+?)\*\*/g).map((part, index) =>
         index % 2 ? (
-          <strong key={index} className="hl">
+          <Text key={index} as="span" color="primary" weight="medium">
             {part}
-          </strong>
+          </Text>
         ) : (
           <Fragment key={index}>{part}</Fragment>
         ),
@@ -38,7 +39,9 @@ export function FactGrid({ facts }: { facts: Fact[] }) {
           <Text type="supporting" color="secondary">
             {fact.label}
           </Text>
-          <Heading level={3}>{fact.value}</Heading>
+          <Text size="xl" weight="medium" hasTabularNumbers>
+            {fact.value}
+          </Text>
         </VStack>
       ))}
     </HStack>
@@ -55,7 +58,7 @@ export function SourceFiles({ paths }: { paths: string[] }) {
   if (!unique.length) return null;
   return (
     <VStack gap={1}>
-      <Text type="supporting" color="secondary" weight="semibold">
+      <Text type="supporting" color="secondary">
         Source
       </Text>
       {unique.map((path) => (

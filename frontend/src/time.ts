@@ -1,8 +1,17 @@
-/** Format a timestamp for the viewer's local timezone. */
+/** Format a timestamp for the viewer's local timezone, e.g. "Sun 22 Nov, 09:11". */
 export function localTime(value: string | null | undefined): string {
   if (!value) return "Not available";
   const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? value : date.toLocaleString();
+  return Number.isNaN(date.valueOf())
+    ? value
+    : date.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+/** Format a timestamp as a 24-hour clock time, e.g. "09:11". */
+export function clockTime(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? "" : date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 const LAUNCH = new Date("2026-11-22T20:00:00+01:00");

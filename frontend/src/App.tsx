@@ -37,7 +37,7 @@ import { AgentsPage } from "./AgentsPage";
 import { ReadinessPanel } from "./ReadinessPanel";
 import { InboxPage } from "./InboxPage";
 import { DataPage } from "./DataPage";
-import { localTime, timeToLaunch } from "./time";
+import { clockTime, localTime, timeToLaunch } from "./time";
 
 const severityOrder: Severity[] = ["critical", "warning", "info"];
 const REFRESH_MS = 30 * 1000;
@@ -297,7 +297,7 @@ function Dashboard({ notifications }: { notifications: Notification[] }) {
                 <StackItem size="fill">
                   <VStack gap={1}>
                     <HStack gap={2} vAlign="center">
-                      <Text weight="semibold">{open.length} open issues</Text>
+                      <Text weight="semibold">{open.length} open {open.length === 1 ? "issue" : "issues"}</Text>
                       {critical > 0 && <Badge label={`${critical} critical`} variant="error" />}
                     </HStack>
                     <Text type="supporting" color="secondary">
@@ -386,7 +386,7 @@ function IssuesPage({
                   <Heading level={1}>Issues</Heading>
                   <Text color="secondary">
                     Where the ERP disagrees with paperwork, suppliers or the launch plan, with proposed
-                    solutions.
+                    solutions
                   </Text>
                 </VStack>
               </StackItem>
@@ -425,7 +425,7 @@ function IssuesPage({
                       label="Search issues"
                       isLabelHidden
                       type="search"
-                      placeholder="Search a part, file or issue"
+                      placeholder="Search"
                       value={query}
                       onChange={setQuery}
                       startIcon="search"
@@ -494,8 +494,7 @@ function RiskCheck({ onFinished }: { onFinished: () => Promise<void> }) {
     }
   }
 
-  const when = (value: string | null | undefined) =>
-    value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+  const when = clockTime;
   const status = running
     ? `Running since ${when(run?.started_at)} · takes a few minutes`
     : run?.status === "done"
@@ -640,7 +639,6 @@ function NotificationCard({
         <HStack gap={3} vAlign="center" wrap="wrap">
           <StackItem size="fill">
             <HStack gap={2} vAlign="center">
-              <StatusDot variant={severityDot(severity)} label={severity} />
               <Badge label={severity} variant={severityVariant(severity)} />
               {kind && (
                 <Text type="supporting" color="secondary">
@@ -658,14 +656,20 @@ function NotificationCard({
           />
         </HStack>
 
-        <Heading level={2}>{n.data.headline || n.data.title || `${n.attr} mismatch`}</Heading>
+        <VStack gap={3}>
+          <Heading level={2}>{n.data.headline || n.data.title || `${n.attr} mismatch`}</Heading>
+          {facts.length > 0 && <FactGrid facts={facts} />}
+          <SourceFiles paths={n.data.refs ?? []} />
+        </VStack>
 
-        {facts.length > 0 && <FactGrid facts={facts} />}
+        {(n.data.solutions ?? []).length > 0 && (
+          <>
+            <Divider />
+            <SolutionList notification={n} onChanged={onChanged} />
+          </>
+        )}
 
-        <SourceFiles paths={n.data.refs ?? []} />
-
-        {(n.data.solutions ?? []).length > 0 && <SolutionList notification={n} onChanged={onChanged} />}
-
+        <Divider />
         <HStack gap={3} vAlign="center" wrap="wrap">
           <Text type="supporting" color="secondary">
             Last seen {localTime(n.seen_at)}
@@ -692,38 +696,39 @@ function SolutionList({ notification, onChanged }: { notification: Notification;
   const solutions = notification.data.solutions ?? [];
 
   return (
-    <VStack gap={3}>
+    <VStack gap={5}>
       <Heading level={4}>Potential solutions</Heading>
       {solutions.map((solution, index) => (
-        <HStack key={index} gap={3} vAlign="start" wrap="wrap">
-          <StackItem size="fill">
-            <VStack gap={1}>
-              <Text weight="semibold">
-                <Rich text={solution.title} />
-              </Text>
-              <Text>
-                <Rich text={solution.description} />
-              </Text>
-              <Text type="supporting" color="secondary">
-                {[
-                  solution.owner,
-                  solution.deadline && `by ${solution.deadline}`,
-                  solution.cost,
-                  solution.approval && `approval: ${solution.approval}`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Text>
-            </VStack>
-          </StackItem>
+        <VStack key={index} gap={2}>
+          <VStack gap={1}>
+            <Text weight="medium">
+              <Rich text={solution.title} />
+            </Text>
+            <Text color="secondary">
+              <Rich text={solution.description} />
+            </Text>
+            <Text type="supporting" color="secondary">
+              {[
+                solution.owner,
+                solution.deadline && `by ${solution.deadline}`,
+                solution.cost,
+                solution.approval && `approval: ${solution.approval}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
+          </VStack>
           {solution.email && (
-            <Button
-              label={solution.status === "sent" ? "Email sent" : "Draft email"}
-              variant={solution.status === "sent" ? "secondary" : "primary"}
-              onClick={() => setOpen(index)}
-            />
+            <HStack>
+              <Button
+                label={solution.status === "sent" ? "Email sent" : "Draft email"}
+                variant={solution.status === "sent" ? "secondary" : "primary"}
+                size="sm"
+                onClick={() => setOpen(index)}
+              />
+            </HStack>
           )}
-        </HStack>
+        </VStack>
       ))}
       {open !== null && solutions[open] && (
         <SolutionEmailDialog
