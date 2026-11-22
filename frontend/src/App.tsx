@@ -668,7 +668,7 @@ function IssueSummary({ notification: n }: { notification: Notification }) {
           <Text weight="medium">{n.data.headline || n.data.title || `${n.attr} mismatch`}</Text>
           <HStack gap={4} wrap="wrap">
             {factsOf(n)
-              .slice(0, 3)
+              .slice(0, 4)
               .map((fact) => (
                 <VStack key={fact.label} gap={0}>
                   <Text type="supporting" color="secondary">

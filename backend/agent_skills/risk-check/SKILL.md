@@ -87,7 +87,9 @@ For each problem call `report_notification` with:
 - `headline`: the problem in one plain sentence for a manager, no ids or
   jargon, e.g. "Art books will not arrive on time". The card shows it first.
 - `facts`: 2-4 key figures as label and value, the ones a manager needs at a
-  glance, e.g. `In stock: 18,000`, `Missing: 62,000`, `Expected delivery: Mon 23 Nov`.
+  glance, e.g. `Needed: 80,000`, `In stock: 18,000`, `Missing: 62,000`,
+  `Expected delivery: Mon 23 Nov`. For a shortage always include the total
+  needed, so in stock + missing adds up to it.
 - `title`: one line a buyer understands, e.g. "Art book receipt booked 80,000, delivery note says 8,000"
 - `severity`: `critical` (blocks or endangers launch, or fraud risk),
   `warning` (needs action today), `info` (worth knowing)
