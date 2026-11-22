@@ -5,10 +5,12 @@ received mail from the team Gmail via the Apps Script in ``scripts/gmail_inbox.g
 import json
 
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
+from app import mail_analysis
+from app.mail_analysis import MailAnalysis
 from app.mailer import SENT_LOG, EmailSettings
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
@@ -32,6 +34,7 @@ class MailMessage(BaseModel):
     status: str | None = None  # Brevo delivery status for outgoing mail
     status_at: str | None = None
     in_reply_to: str | None = None  # for received mail: the sent mail it answers
+    analysis: MailAnalysis | None = None  # agent analysis of received mail
 
 
 class Mailbox(BaseModel):
@@ -122,6 +125,9 @@ def mailbox() -> Mailbox:
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as error:
             incoming_error = f"Could not read the Gmail inbox: {error}"
     messages.sort(key=lambda m: m.at, reverse=True)
+    analyses = mail_analysis.load()
+    for message in messages:
+        message.analysis = analyses.get(message.message_id)
     return Mailbox(
         messages=messages,
         sender=settings.smtp_user,
@@ -129,6 +135,19 @@ def mailbox() -> Mailbox:
         incoming_configured=configured,
         incoming_error=incoming_error,
     )
+
+
+@router.post("/analyses", status_code=201)
+async def record_analysis(analysis: MailAnalysis) -> MailAnalysis:
+    """Store an agent's analysis of a received email (called by the MCP tool)."""
+    return await run_in_threadpool(mail_analysis.save, analysis)
+
+
+@router.delete("/analyses", status_code=204)
+async def reanalyze(message_id: str) -> None:
+    """Drop a message's analysis; the triage job analyzes it again next cycle."""
+    if not await run_in_threadpool(mail_analysis.delete, message_id):
+        raise HTTPException(404, "No analysis for this message.")
 
 
 @router.get("")

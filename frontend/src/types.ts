@@ -146,6 +146,8 @@ export interface MailMessage {
   status_at: string | null;
   /** For received mail: Message-ID of the sent mail it answers. */
   in_reply_to?: string | null;
+  /** Agent analysis of received mail. */
+  analysis?: MailAnalysis | null;
 }
 
 /** Everything the inbox tab shows. */
@@ -155,4 +157,27 @@ export interface Mailbox {
   status_source: string | null;
   incoming_configured: boolean;
   incoming_error?: string | null;
+}
+
+/** Something an email's sender commits to. */
+export interface Commitment {
+  what: string;
+  quantity: string;
+  date: string;
+  price: string;
+}
+
+/** An agent's analysis of a received email. */
+export interface MailAnalysis {
+  message_id: string;
+  status: "running" | "done" | "failed";
+  updated_at: string;
+  language: string;
+  summary: string;
+  translation: string;
+  commitments: Commitment[];
+  risks: string;
+  next_step: string;
+  notification_keys: string[];
+  error: string | null;
 }

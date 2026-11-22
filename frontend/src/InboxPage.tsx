@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getMailbox } from "./api";
+import { getMailbox, reanalyzeEmail } from "./api";
 import type { MailMessage, Mailbox } from "./types";
 import "./inbox.css";
 
@@ -16,6 +16,45 @@ function when(value: string): string {
   if (Number.isNaN(date.valueOf())) return value;
   const today = new Date().toDateString() === date.toDateString();
   return today ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : date.toLocaleDateString([], { day: "numeric", month: "short" });
+}
+
+/** Analysis state of a received mail in the list. */
+function AnalysisChip({ message }: { message: MailMessage }) {
+  if (message.direction !== "in") return null;
+  const status = message.analysis?.status;
+  const [tone, label] = status === "done" ? ["ok", "Analyzed"] : status === "failed" ? ["bad", "Analysis failed"] : ["wait", "Analyzing…"];
+  return <span className={`inbox-status inbox-status-${tone}`}>{label}</span>;
+}
+
+/** The agent's reading of a received mail: summary, commitments, risks, next step. */
+function AnalysisPanel({ message, onRetry }: { message: MailMessage; onRetry: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const analysis = message.analysis;
+  async function retry() {
+    setBusy(true);
+    try { await reanalyzeEmail(message.message_id); onRetry(); } finally { setBusy(false); }
+  }
+  if (!analysis || analysis.status === "running") {
+    return <section className="mail-ai mail-ai-wait"><strong>Agent analysis</strong><p>An agent is reading this email. The analysis appears here in a minute or two.</p></section>;
+  }
+  if (analysis.status === "failed") {
+    return <section className="mail-ai mail-ai-bad"><strong>Agent analysis failed</strong><p>{analysis.error}</p><button type="button" onClick={() => void retry()} disabled={busy}>{busy ? "Restarting…" : "Analyze again"}</button></section>;
+  }
+  return (
+    <section className="mail-ai">
+      <div className="mail-ai-head"><strong>Agent analysis</strong>{analysis.language && <span>{analysis.language.toUpperCase()}</span>}<button type="button" onClick={() => void retry()} disabled={busy}>{busy ? "Restarting…" : "Analyze again"}</button></div>
+      <p className="mail-ai-summary">{analysis.summary}</p>
+      {analysis.commitments.length > 0 && (
+        <ul className="mail-ai-commitments">
+          {analysis.commitments.map((c, index) => <li key={index}><strong>{c.what}</strong>{[c.quantity, c.date, c.price].filter(Boolean).length > 0 && <span>{[c.quantity, c.date, c.price].filter(Boolean).join(" · ")}</span>}</li>)}
+        </ul>
+      )}
+      {analysis.risks && <p className="mail-ai-risk"><strong>Risk:</strong> {analysis.risks}</p>}
+      {analysis.next_step && <p className="mail-ai-next"><strong>Next step:</strong> {analysis.next_step}</p>}
+      {analysis.notification_keys.length > 0 && <p className="mail-ai-links">Updated issues: {analysis.notification_keys.map((key) => <a key={key} href="#notifications">{key}</a>)}</p>}
+      {analysis.translation && <details className="mail-ai-translation"><summary>English translation</summary><p>{analysis.translation}</p></details>}
+    </section>
+  );
 }
 
 /** Delivery status chip for outgoing mail. */
@@ -83,7 +122,7 @@ export function InboxPage() {
                   <time>{when(m.at)}</time>
                 </span>
                 <span className="inbox-item-subject">{m.direction === "out" ? "↗ " : "↙ "}{m.subject || "(no subject)"}</span>
-                <span className="inbox-item-bottom"><span className="inbox-item-preview">{m.body.replace(/\s+/g, " ").slice(0, 90)}</span><StatusChip message={m} /></span>
+                <span className="inbox-item-bottom"><span className="inbox-item-preview">{m.body.replace(/\s+/g, " ").slice(0, 90)}</span><StatusChip message={m} /><AnalysisChip message={m} /></span>
               </button>
             </li>
           ))}
@@ -102,6 +141,7 @@ export function InboxPage() {
                   {open.direction === "out" && <div><dt>Status</dt><dd>{open.status ? <><StatusChip message={open} />{open.status_at && <small> {new Date(open.status_at).toLocaleString()}</small>}</> : box?.status_source ? "No delivery event yet" : "Unknown (Brevo not configured)"}</dd></div>}
                 </dl>
               </header>
+              {open.direction === "in" && <AnalysisPanel message={open} onRetry={() => void load()} />}
               <div className="inbox-body">{open.body}</div>
             </>
           ) : <p className="inbox-empty">Select a message.</p>}

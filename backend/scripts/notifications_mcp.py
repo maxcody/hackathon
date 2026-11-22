@@ -214,6 +214,58 @@ async def report_notification(
         return f"Updated notification #{existing['id']} ({key})"
 
 
+class EmailCommitment(BaseModel):
+    """Something the email's sender commits to or states as fact."""
+
+    what: str = Field(description="e.g. 'Ships 8,000 art books by truck'")
+    quantity: str = ""
+    date: str = Field("", description="Date/time as stated, with timezone if given")
+    price: str = ""
+
+
+@server.tool()
+async def record_email_analysis(
+    message_id: str,
+    summary: str,
+    language: str = "",
+    translation: str = "",
+    commitments: list[EmailCommitment] | None = None,
+    risks: str = "",
+    next_step: str = "",
+    notification_keys: list[str] | None = None,
+) -> str:
+    """Save your analysis of a received email; the dashboard inbox shows it.
+
+    Args:
+        message_id: The email's Message-ID exactly as given to you.
+        summary: Two or three sentences in English: who writes, what they say.
+        language: Language of the email, e.g. ``pl`` or ``en``.
+        translation: Full English translation if the email is not in English.
+        commitments: Concrete quantities, dates and prices the sender commits to.
+        risks: What in the email threatens the launch, or contradicts our data.
+        next_step: The one action a buyer should take now.
+        notification_keys: Keys of the notifications this email relates to.
+
+    Returns:
+        Confirmation that the analysis was saved.
+    """
+    body = {
+        "message_id": message_id,
+        "status": "done",
+        "summary": summary,
+        "language": language,
+        "translation": translation,
+        "commitments": [c.model_dump() for c in commitments or []],
+        "risks": risks,
+        "next_step": next_step,
+        "notification_keys": notification_keys or [],
+    }
+    async with make_client() as client:
+        response = await client.post("/inbox/analyses", json=body)
+        response.raise_for_status()
+    return f"Saved analysis for {message_id}"
+
+
 @server.tool()
 async def list_notifications(status: str = "", kind: str = "") -> str:
     """List notifications, optionally filtered by status or kind.

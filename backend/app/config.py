@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     llm_model: str | None = None
     llm_api_key: str | None = None
     llm_base_url: str | None = None
+    # Let an agent analyze each newly received email (Inbox tab), checked periodically
+    mail_triage: bool = True
+    mail_triage_interval_seconds: PositiveInt = 120
     # SQLite file holding the dashboard's chat agents and their conversations
     agents_db: Path = (
         Path(__file__).resolve().parents[2] / ".local_data" / "agents.sqlite3"

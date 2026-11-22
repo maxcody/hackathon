@@ -53,6 +53,12 @@ export function getMailbox(): Promise<Mailbox> {
   return request("/inbox");
 }
 
+/** Drop an email's analysis so the agent analyzes it again on its next cycle. */
+export async function reanalyzeEmail(messageId: string): Promise<void> {
+  const response = await fetch(`/inbox/analyses?message_id=${encodeURIComponent(messageId)}`, { method: "DELETE" });
+  if (!response.ok) throw new Error(`Could not restart the analysis (${response.status}).`);
+}
+
 /** Launch readiness per edition and part coverage, as the ERP files state it. */
 export function getReadiness(): Promise<Readiness> {
   return request("/readiness");

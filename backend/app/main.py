@@ -1,3 +1,6 @@
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 import truststore
@@ -9,6 +12,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db import engine
+from app.mail_triage import triage_loop
 from app.routers import (
     agent_workspace,
     imported,
@@ -22,7 +26,19 @@ from app.routers import (
 # Trust the OS certificate store, so portal calls work behind TLS-inspecting proxies
 truststore.inject_into_ssl()
 
-app = FastAPI(title="Hackathon API")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Run the email-triage job alongside the API when it is enabled."""
+    job = asyncio.create_task(triage_loop()) if settings.mail_triage else None
+    yield
+    if job:
+        job.cancel()
+        with suppress(asyncio.CancelledError):
+            await job
+
+
+app = FastAPI(title="Hackathon API", lifespan=lifespan)
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.add_middleware(

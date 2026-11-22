@@ -41,3 +41,22 @@
 .inbox-refresh .spinning{display:inline-block;animation:inbox-spin .8s linear infinite}
 @keyframes inbox-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.inbox-refresh .spinning{animation:none}}
+/* Agent analysis of a received mail */
+.mail-ai{margin:0 0 18px;padding:14px 16px;border:1px solid #dfe8da;border-radius:12px;background:#f6faf3;font-size:13.5px;line-height:1.55;color:#2c3a32;max-width:80ch}
+.mail-ai-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.mail-ai-head span{padding:0 7px;border-radius:999px;background:#e4efdf;color:#36543c;font-size:11px;font-weight:700}
+.mail-ai button{margin-left:auto;padding:3px 10px;border:1px solid #d6e2cf;border-radius:7px;background:#fff;color:#3f4a44;font:600 12px "DM Sans",sans-serif;cursor:pointer}
+.mail-ai-bad button,.mail-ai-wait button{margin-left:0}
+.mail-ai p{margin:6px 0 0}
+.mail-ai-summary{margin-top:0!important}
+.mail-ai-commitments{margin:8px 0 0;padding-left:18px}
+.mail-ai-commitments li+li{margin-top:3px}
+.mail-ai-commitments span{display:block;color:#5f6b63;font-size:12.5px}
+.mail-ai-risk strong{color:#a5453b}
+.mail-ai-next strong{color:#36543c}
+.mail-ai-links a{margin-left:6px;color:#487553;font:12px "DM Mono",monospace}
+.mail-ai-translation{margin-top:8px}
+.mail-ai-translation summary{cursor:pointer;color:#487553;font-weight:600;font-size:12.5px}
+.mail-ai-translation p{white-space:pre-wrap}
+.mail-ai-wait{background:#f6f7f4;border-color:#e7eae4;color:#5f6b63}
+.mail-ai-bad{background:#fdf1ef;border-color:#f3d9d4;color:#a5453b}
