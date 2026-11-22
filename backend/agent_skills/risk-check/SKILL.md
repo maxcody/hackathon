@@ -105,6 +105,15 @@ closes part of it. Look for solutions in the data, for example:
 - for parts nothing can deliver in time: name the trade-off as a `decision`
   (e.g. pack without the part and ship it later, prioritise orders)
 
+Whenever a supplier has to do something, the solution is an `email` (or a
+`claim`) with a finished draft, never `internal`: ordering stock or an offer,
+expediting or splitting a delivery, switching to air or road, releasing held
+goods, confirming a delayed date, replacing or crediting wrong, short or
+rejected goods, sampling an alternative part. Use `internal` only for work
+inside Soony (dock slots, pickups at the port, recounts, blocking stock), and
+add the matching supplier email as a separate solution when both are needed.
+Expect most critical problems to have at least one email solution.
+
 Each solution has a `kind`:
 
 - `email`: a supplier email gets it done (order, expedite, release, confirm).
@@ -114,23 +123,33 @@ Each solution has a `kind`:
   "Soony Interactive GmbH, Procurement"; `translation` = English translation of
   the non-English part. Be specific: quantities, part numbers, PO numbers,
   delivery address DC-HAM Hamburg, the latest arrival time, and ask for written
-  confirmation.
+  confirmation. Write it as a decision, not an inquiry: when the data shows an
+  offer or stock is available and the time is short, place the order or request
+  ("please load and ship 8,000 ... today"), so one click on Send sets it in
+  motion.
 - `claim`: complaint or credit note for wrong, short or rejected goods; attach
   an `email` the same way when it goes to a supplier.
 - `internal`: someone at Soony acts (book a pickup or dock slot, recount stock,
   repack). Name the `owner` from `soony/context` (org chart, onboarding notes).
 - `decision`: management must choose; describe the options and their impact.
 
-Fill `owner`, `deadline` (latest time that still helps the launch) and `cost`
-when known. Set `approval` per `soony/context/approval_policy_*` whenever the
-action needs one, otherwise leave it empty:
+Fill `owner` and `deadline` (latest time that still helps the launch). Compute
+`cost` from the data (quantity x unit price from `purchase_orders_*.csv`,
+`suppliers/*/components.csv` or the offer, plus surcharges such as rush +35 %)
+and convert to EUR when you can, e.g. "8,000 x EUR 2.10 = EUR 16,800".
+
+Then decide `approval` from that cost and PP-07. Name the concrete role and,
+from the org chart, the person: e.g. "Category Lead (air freight) - <name>". Leave it empty when the buyer may act alone (purchase under EUR
+50,000, no air freight, no conditional supplier); a dock slot is not an
+approval, put it in `description` and a separate `internal` solution instead.
+Rules from `soony/context/approval_policy_*`:
 
 - purchase value per PO: Buyer < EUR 50,000, Category Lead < 500,000, Head of
   Procurement < 2,000,000, CPO < 5,000,000, CPO and CFO jointly above
 - unplanned air freight: Category Lead up to EUR 200,000 per month and
   category, CPO above
 - deliveries to DC-HAM need a dock slot from the site lead (Katrin Jansen,
-  deputy Raj Patel)
+  deputy Raj Patel); that is an internal step, not an approval
 - suppliers on conditional release: extension by Category Lead with the
   Supplier Quality Lead
 - note when the responsible role is vacant (e.g. Category Lead for
