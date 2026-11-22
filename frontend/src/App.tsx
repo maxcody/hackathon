@@ -655,7 +655,7 @@ function IssueSummary({ notification: n }: { notification: Notification }) {
   return (
     <a href={`#n-${n.id}`} className="issue-link">
       <Card padding={4} elevation="low" variant={status === "resolved" ? "muted" : "default"}>
-        <VStack gap={3}>
+        <VStack gap={3} style={{ height: "100%" }}>
           <HStack gap={2} vAlign="center">
             <Badge label={severity} variant={severityVariant(severity)} />
             {kind && (
@@ -680,7 +680,7 @@ function IssueSummary({ notification: n }: { notification: Notification }) {
                 </VStack>
               ))}
           </HStack>
-          <Text type="supporting" color="secondary">
+          <Text type="supporting" color="secondary" style={{ marginTop: "auto" }}>
             {solutions ? `${solutions} potential ${solutions === 1 ? "solution" : "solutions"}` : "No solutions yet"}
             {" · "}
             {localTime(n.seen_at)}
