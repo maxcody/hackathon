@@ -12,7 +12,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from app.data import data_root, read_csv
+from app.data import data_root, read_csv, read_workbook
 
 SITE = "DC-HAM"
 SOURCES = [
@@ -36,6 +36,8 @@ class Edition(BaseModel):
     packed: int
     remaining: int
     last_packed: str | None
+    rate_per_hour: int | None = None  # current pack-out rate (launch status)
+    hours_left: float | None = None  # remaining / rate
 
 
 class Inbound(BaseModel):
@@ -106,6 +108,85 @@ def _suppliers() -> tuple[dict[str, list[str]], dict[str, str]]:
     return found, fitted
 
 
+def _qty(text: str | None) -> int:
+    """Parse a sheet quantity; German thousands like ``42.900`` mean 42,900."""
+    text = (text or "").strip()
+    if re.fullmatch(r"\d{1,3}(\.\d{3})+", text):
+        return int(text.replace(".", ""))
+    return _int(text)
+
+
+def _tables(path: Path) -> dict[str, tuple[str, list[dict[str, str]]]]:
+    """Read each sheet as (title line, rows keyed by the header labels).
+
+    The header is the first row that has both ``Material``/``Product`` and a
+    quantity column; the title is the sheet's first row (e.g. "... 20:50").
+    """
+    tables = {}
+    for sheet, rows in read_workbook(path).items():
+        numbers = sorted(rows)
+        title = " ".join(rows[numbers[0]].values()) if numbers else ""
+        header = next(
+            (
+                n
+                for n in numbers
+                if {"Qty", "Packed"} & set(rows[n].values())
+                and {"Material", "Product"} & set(rows[n].values())
+            ),
+            None,
+        )
+        if header is None:
+            continue
+        labels = rows[header]
+        tables[sheet] = (
+            title,
+            [
+                {labels[col]: value for col, value in rows[n].items() if col in labels}
+                for n in numbers
+                if n > header
+            ],
+        )
+    return tables
+
+
+def _latest_update() -> tuple[str, str, dict[str, int], dict[str, int]] | None:
+    """Newest ``erp/stock_update_<date>.xlsx``: date, packed-at note, stock, packed.
+
+    Stock is book stock after the day's receipts; packed is total copies packed.
+    """
+    files = sorted((data_root() / "soony" / "erp").glob("stock_update_*.xlsx"))
+    if not files:
+        return None
+    date = files[-1].stem.rsplit("_", 1)[-1]
+    stock: dict[str, int] = defaultdict(int)
+    packed: dict[str, int] = {}
+    as_of = date
+    for title, rows in _tables(files[-1]).values():
+        for row in rows:
+            if row.get("Site") != SITE or not row.get("Material"):
+                continue
+            if "Packed today" in row:  # the finished-goods table
+                packed[row["Material"]] = _qty(row.get("Qty"))
+                stamp = re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", title)
+                as_of = stamp.group(0) if stamp else as_of
+            else:
+                stock[row["Material"]] += _qty(row.get("Qty"))
+    return date, as_of, stock, packed
+
+
+def _rates() -> dict[str, int]:
+    """Pack-out rate per hour by product from ``context/launch_status.xlsx``."""
+    path = data_root() / "soony" / "context" / "launch_status.xlsx"
+    if not path.exists():
+        return {}
+    return {
+        row["Product"]: _qty(row.get("Rate per hour"))
+        for _, rows in _tables(path).values()
+        for row in rows
+        if row.get("Product") and row.get("Rate per hour")
+    }
+
+
 def _rows(rel: str) -> list[dict[str, str]]:
     """Read a CSV under ``soony/``; an optional file that is missing is empty."""
     path: Path = data_root() / "soony" / rel
@@ -126,17 +207,40 @@ def compute() -> Readiness:
         if row["site"] == SITE:
             packed[row["product_id"]] += _int(row["units_packed"])
             last[row["product_id"]] = max(last.get(row["product_id"], ""), row["date"])
-    editions = [
-        Edition(
-            product_id=p["product_id"],
-            name=p["name"],
-            day_one=_int(p["day_one_qty"]),
-            packed=packed[p["product_id"]],
-            remaining=max(0, _int(p["day_one_qty"]) - packed[p["product_id"]]),
-            last_packed=last.get(p["product_id"]),
+
+    stock_rows = [r for r in read_csv("erp/stock_snapshot.csv") if r["site"] == SITE]
+    snapshot = max((r["snapshot_date"] for r in stock_rows), default=None)
+    stock: dict[str, int] = defaultdict(int)
+    for row in stock_rows:
+        if row["snapshot_date"] == snapshot:
+            stock[row["material_id"]] += _int(row["quantity"])
+    update = _latest_update()
+    if update and (snapshot is None or update[0] >= snapshot):
+        # The day's stock update is newer: its book stock and packed counts win
+        snapshot, as_of, stock, packed_now = update
+        stock = defaultdict(int, stock)
+        for product, qty in packed_now.items():
+            packed[product] = qty
+            last[product] = as_of
+
+    rates = _rates()
+    editions = []
+    for p in products:
+        pid, day_one = p["product_id"], _int(p["day_one_qty"])
+        left = max(0, day_one - packed[pid])
+        rate = rates.get(pid) or None
+        editions.append(
+            Edition(
+                product_id=pid,
+                name=p["name"],
+                day_one=day_one,
+                packed=packed[pid],
+                remaining=left,
+                last_packed=last.get(pid),
+                rate_per_hour=rate,
+                hours_left=round(left / rate, 1) if rate else None,
+            )
         )
-        for p in products
-    ]
     remaining = {e.product_id: e.remaining for e in editions}
 
     need: dict[str, int] = defaultdict(int)
@@ -148,12 +252,6 @@ def compute() -> Readiness:
             need[line["child_id"]] += remaining[parent] * _int(line["qty_per"])
             used_in[line["child_id"]].append(parent)
 
-    stock_rows = [r for r in read_csv("erp/stock_snapshot.csv") if r["site"] == SITE]
-    snapshot = max((r["snapshot_date"] for r in stock_rows), default=None)
-    stock: dict[str, int] = defaultdict(int)
-    for row in stock_rows:
-        if row["snapshot_date"] == snapshot:
-            stock[row["material_id"]] += _int(row["quantity"])
     received: dict[str, int] = defaultdict(int)
     for rel in ("erp/goods_receipts.csv", "erp/goods_receipts_update.csv"):
         for row in _rows(rel):

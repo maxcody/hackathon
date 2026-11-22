@@ -40,6 +40,68 @@ def data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
+def write_xlsx(path: Path, sheets: dict[str, list[list[str]]]) -> None:
+    """Write a minimal xlsx with inline-string cells (enough for read_workbook)."""
+    import zipfile
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    names = "".join(
+        f'<sheet name="{n}" sheetId="{i}"/>' for i, n in enumerate(sheets, 1)
+    )
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("xl/workbook.xml", f"<workbook><sheets>{names}</sheets></workbook>")
+        for i, rows in enumerate(sheets.values(), 1):
+            cells = "".join(
+                f'<row r="{r}">'
+                + "".join(
+                    f'<c r="{chr(65 + c)}{r}" t="inlineStr"><is><t>{v}</t></is></c>'
+                    for c, v in enumerate(row)
+                )
+                + "</row>"
+                for r, row in enumerate(rows, 1)
+            )
+            z.writestr(f"xl/worksheets/sheet{i}.xml", f"<worksheet>{cells}</worksheet>")
+
+
+def test_newer_stock_update_and_rates_win(data: Path) -> None:
+    write_xlsx(
+        data / "soony/erp/stock_update_2026-11-21.xlsx",
+        {
+            "Components": [
+                ["Stock after receipts"],
+                [],
+                ["Site", "Material", "Qty", "Receipts today"],
+                ["DC-HAM", "CARD", "1.200", "0"],
+            ],
+            "Finished goods": [
+                ["Packed copies DC-HAM, 2026-11-21 20:50"],
+                [],
+                ["Site", "Material", "Qty", "Packed today"],
+                ["DC-HAM", "FG-X", "5", "1"],
+                ["DC-HAM", "STD", "90", "30"],
+            ],
+        },
+    )
+    write_xlsx(
+        data / "soony/context/launch_status.xlsx",
+        {
+            "Status": [
+                ["Launch"],
+                ["Name", "Product", "Packed", "Rate per hour"],
+                ["S", "STD", "80", "4"],
+            ]
+        },
+    )
+    result = compute()
+    [std] = result.editions
+    assert result.snapshot_date == "2026-11-21"
+    assert (std.packed, std.remaining, std.last_packed) == (90, 10, "2026-11-21 20:50")
+    assert (std.rate_per_hour, std.hours_left) == (4, 2.5)
+    card = {p.component_id: p for p in result.parts}["CARD"]
+    # German thousands; the 11-21 receipt is already in the update's book stock
+    assert (card.stock, card.received_since, card.need) == (1200, 0, 10)
+
+
 def test_editions_count_only_the_site(data: Path) -> None:
     result = compute()
     assert result.launch_date == "2026-11-22" and result.snapshot_date == "2026-11-20"

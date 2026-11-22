@@ -95,6 +95,8 @@ export interface Edition {
   packed: number;
   remaining: number;
   last_packed: string | null;
+  rate_per_hour: number | null;
+  hours_left: number | null;
 }
 
 /** A shipment due at the site before launch. */

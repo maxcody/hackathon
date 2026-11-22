@@ -13,6 +13,7 @@ import subprocess
 import sys
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from pathlib import Path
 
 from app.chat_format import EMAIL_DRAFT_GUIDANCE, MARKDOWN_GUIDANCE
 from app.config import settings
@@ -37,6 +38,21 @@ TOOL_SERVERS = ("portal", "notifications", "email", "skills")
 
 class CodexError(Exception):
     """Raised when Codex is missing, fails or returns no answer."""
+
+
+class CodexStreamClosed(CodexError):
+    """The streaming app-server ended mid-turn; the session can be continued."""
+
+    def __init__(self, message: str, thread_id: str | None) -> None:
+        """Remember the session that was running, so a caller can resume it."""
+        super().__init__(message)
+        self.thread_id = thread_id
+
+
+# app-server diagnostics (it exits without a word on stdout when it fails)
+APP_SERVER_LOG = (
+    Path(__file__).resolve().parents[2] / ".local_data" / "codex-app-server.log"
+)
 
 
 def build_command(executable: str, thread_id: str | None) -> list[str]:
@@ -167,6 +183,9 @@ async def _stream_turn(
         raise CodexError("The Codex CLI is not installed on the backend machine.")
     folder = data_root()
     folder.mkdir(parents=True, exist_ok=True)
+    APP_SERVER_LOG.parent.mkdir(parents=True, exist_ok=True)
+    errors = APP_SERVER_LOG.open("ab")
+    state = {"thread": thread_id}
     process = await asyncio.create_subprocess_exec(
         executable,
         "app-server",
@@ -174,7 +193,7 @@ async def _stream_turn(
         cwd=folder,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.DEVNULL,
+        stderr=errors,
         limit=4 * 1024 * 1024,
     )
     assert process.stdin is not None and process.stdout is not None
@@ -204,7 +223,9 @@ async def _stream_turn(
                 )
                 continue
             return event
-        raise CodexError("Codex closed the streaming connection.")
+        raise CodexStreamClosed(
+            "Codex closed the streaming connection.", state["thread"]
+        )
 
     async def request(request_id: int, method: str, params: dict) -> dict:
         await send({"id": request_id, "method": method, "params": params})
@@ -236,6 +257,7 @@ async def _stream_turn(
                 2, "thread/resume" if thread_id else "thread/start", options
             )
             active_id = result["thread"]["id"]
+            state["thread"] = active_id
             await send(
                 {
                     "id": 3,
@@ -281,6 +303,7 @@ async def _stream_turn(
             with suppress(ProcessLookupError):
                 process.kill()
         await process.wait()
+        errors.close()
 
 
 def first_prompt(instructions: str, history: list[dict], message: str) -> str:

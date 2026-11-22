@@ -16,7 +16,13 @@ from openai import (
 )
 from starlette.concurrency import run_in_threadpool
 
-from app.codex_agent import CodexError, first_prompt, run_turn, stream_turn
+from app.codex_agent import (
+    CodexError,
+    CodexStreamClosed,
+    first_prompt,
+    run_turn,
+    stream_turn,
+)
 from app.config import settings
 from app.llm import LLMError, reply_to_agent
 from app.schemas.agent_workspace import (
@@ -123,7 +129,16 @@ async def _chat(
             prompt = first_prompt(agent.instructions, history, payload.message)
         try:
             if emit:
-                reply, thread = await stream_turn(prompt, thread, emit)
+                try:
+                    reply, thread = await stream_turn(prompt, thread, emit)
+                except CodexStreamClosed as closed:
+                    # The streaming server died mid-turn: finish the same session
+                    # without streaming, so long skill runs still complete.
+                    logger.warning("Codex stream closed; continuing without streaming")
+                    resume = closed.thread_id
+                    retry = "Continue the task and finish it." if resume else prompt
+                    reply, thread = await run_in_threadpool(run_turn, retry, resume)
+                    await emit(reply)
             else:
                 reply, thread = await run_in_threadpool(run_turn, prompt, thread)
         except CodexError as error:

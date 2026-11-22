@@ -13,8 +13,11 @@ function signed(value: number): string {
 /** Short day label, e.g. "Sat 21 Nov", for an ISO date or datetime. */
 function day(value: string | null): string {
   if (!value) return "–";
-  const date = new Date(value.length === 10 ? `${value}T12:00:00` : value);
-  return Number.isNaN(date.valueOf()) ? value : date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const withTime = /\d{2}:\d{2}/.test(value);
+  const date = new Date(value.length === 10 ? `${value}T12:00:00` : value.replace(" ", "T"));
+  if (Number.isNaN(date.valueOf())) return value;
+  const label = date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  return withTime ? `${label} ${date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : label;
 }
 
 /** Drop the product line prefix: "Grand Heist 6 – Standard Edition (game card)" → "Standard Edition". */
@@ -58,7 +61,8 @@ export function ReadinessPanel({ notifications }: { notifications: Notification[
               <span>{editionName(edition.name)}</span>
               <strong>{number.format(edition.remaining)} <small>still to pack</small></strong>
               <div className="ready-bar" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${pct}%` }} /></div>
-              <small>{number.format(edition.packed)} of {number.format(edition.day_one)} packed ({pct.toFixed(0)}%) · last pack-out {day(edition.last_packed)}</small>
+              <small>{number.format(edition.packed)} of {number.format(edition.day_one)} packed ({pct.toFixed(0)}%) · as of {day(edition.last_packed)}</small>
+              {edition.hours_left != null && edition.rate_per_hour && <small className="ready-pace">≈ {edition.hours_left} h of packing at {number.format(edition.rate_per_hour)}/h</small>}
             </article>
           );
         })}
