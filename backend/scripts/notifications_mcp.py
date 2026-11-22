@@ -57,6 +57,15 @@ def make_key(kind: str, subject: str) -> str:
     return ":".join([kind, *(part for part in parts if part)])
 
 
+class Fact(BaseModel):
+    """One key figure of the problem, shown big on the card."""
+
+    label: str = Field(
+        description="Short, e.g. 'In stock', 'Missing', 'Expected delivery'"
+    )
+    value: str = Field(description="The figure or date, e.g. '18,000' or 'Mon 23 Nov'")
+
+
 class SolutionEmail(BaseModel):
     """A ready-to-send email that would solve (part of) the problem."""
 
@@ -142,6 +151,8 @@ async def report_notification(
     details: str = "",
     refs: list[str] | None = None,
     solutions: list[Solution] | None = None,
+    headline: str = "",
+    facts: list[Fact] | None = None,
 ) -> str:
     """Create a notification, or update the one for the same kind and subject.
 
@@ -166,11 +177,18 @@ async def report_notification(
         erp_val: The ERP's value, as text.
         customer_val: The customer side's (paper, supplier) value, as text.
         severity: ``critical``, ``warning`` or ``info``.
-        details: Explanation and recommended action.
-        refs: Source file paths backing the finding.
-        solutions: 1-3 concrete ways to solve it, best first. Email solutions
-            carry a finished draft; the dashboard shows it in a popup with a Send
-            button. Never send these emails yourself.
+        details: Longer explanation, shown collapsed. Keep the card readable
+            without it.
+        refs: Only the files that contain the figures you report (not every file
+            you read), as portal paths; the dashboard lists them as links.
+        solutions: 1-3 concrete ways to solve it, best first. In each solution's
+            description wrap the important facts (supplier, quantity, date, cost)
+            in ``**double asterisks**`` so the dashboard highlights them. Email
+            solutions carry a finished draft; the dashboard shows it in a popup
+            with a Send button. Never send these emails yourself.
+        headline: The problem in one plain sentence a manager understands at a
+            glance, no ids or jargon, e.g. "Art books will not arrive on time".
+        facts: 2-4 key figures, e.g. In stock, Missing, Expected delivery date.
 
     Returns:
         Whether a row was created or updated, with its id. A re-reported finding
@@ -185,6 +203,11 @@ async def report_notification(
         "details": details,
         "refs": refs or [],
     }
+    # Re-reports that omit these (an email triage update) must not blank them
+    if headline:
+        fields["headline"] = headline
+    if facts:
+        fields["facts"] = [f.model_dump() for f in facts]
     proposed = solutions or []
     body = {"attr": attr, "erp_val": erp_val, "customer_val": customer_val}
     async with make_client() as client:

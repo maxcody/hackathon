@@ -1,9 +1,19 @@
 /** Severity an agent assigns to a notification (free text in the backend). */
 export type Severity = "critical" | "warning" | "info";
 
+/** One key figure of an issue, e.g. "Missing" and "62,000". */
+export interface Fact {
+  label: string;
+  value: string;
+}
+
 /** Fields the agents' notifications tool stores in a notification's `data`. */
 export interface NotificationData {
   key?: string;
+  /** The problem in one plain sentence; falls back to `title`. */
+  headline?: string;
+  /** 2-4 key figures shown big on the card. */
+  facts?: Fact[];
   title?: string;
   kind?: string;
   severity?: string;

@@ -99,3 +99,49 @@ async def test_status_of_unknown_key(backend: list[dict]) -> None:
     assert await tool.set_notification_status("nope", "resolved") == (
         "No notification with key nope"
     )
+
+
+async def test_headline_and_facts_are_kept_when_a_later_report_omits_them(
+    backend: list[dict],
+) -> None:
+    await tool.report_notification(
+        kind="shipment_delay",
+        subject="SHP-1",
+        attr="eta",
+        title="Late",
+        headline="Art books will not arrive on time",
+        facts=[
+            tool.Fact(label="In stock", value="18,000"),
+            tool.Fact(label="Missing", value="62,000"),
+        ],
+        refs=["soony/erp/stock_snapshot.csv"],
+    )
+    data = backend[0]["data"]
+    assert data["headline"] == "Art books will not arrive on time"
+    assert data["facts"] == [
+        {"label": "In stock", "value": "18,000"},
+        {"label": "Missing", "value": "62,000"},
+    ]
+
+    # An email-triage style update that only adds details must not blank them
+    await tool.report_notification(
+        kind="shipment_delay",
+        subject="SHP-1",
+        attr="eta",
+        title="Late",
+        details="Supplier confirmed a truck.",
+    )
+    data = backend[0]["data"]
+    assert data["headline"] == "Art books will not arrive on time"
+    assert [f["label"] for f in data["facts"]] == ["In stock", "Missing"]
+    assert data["details"] == "Supplier confirmed a truck."
+
+    # A new headline replaces the old one
+    await tool.report_notification(
+        kind="shipment_delay",
+        subject="SHP-1",
+        attr="eta",
+        title="Late",
+        headline="Art books arrive a day late",
+    )
+    assert backend[0]["data"]["headline"] == "Art books arrive a day late"

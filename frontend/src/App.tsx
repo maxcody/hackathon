@@ -29,8 +29,9 @@ import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Dialog } from "@astryxdesign/core/Dialog";
 import { Divider } from "@astryxdesign/core/Divider";
 import { getSkillRun, importMaster, importSheets, listNotifications, sendSolutionEmail, startSkillRun, syncPortal, updateNotificationData } from "./api";
-import type { Notification, Severity, SkillRun, Solution } from "./types";
+import type { Fact, Notification, Severity, SkillRun, Solution } from "./types";
 import { ComposeWindow } from "./EmailDraft";
+import { FactGrid, Rich, SourceFiles } from "./IssueCard";
 import type { Draft } from "./EmailDraft";
 import { AgentsPage } from "./AgentsPage";
 import { ReadinessPanel } from "./ReadinessPanel";
@@ -607,7 +608,17 @@ function NotificationBell({ notifications }: { notifications: Notification[] }) 
   );
 }
 
-/** Display one notification: what differs, why it matters, how to solve it. */
+/** The figures to show big: the agent's facts, else the ERP and actual values. */
+function factsOf(n: Notification): Fact[] {
+  if (n.data.facts?.length) return n.data.facts;
+  const attr = n.attr.replace(/_/g, " ");
+  return [
+    n.erp_val ? { label: `ERP · ${attr}`, value: n.erp_val } : null,
+    n.customer_val ? { label: "Actual", value: n.customer_val } : null,
+  ].filter((fact): fact is Fact => fact !== null);
+}
+
+/** One issue: a headline, the key figures, the files behind it and what to do about it. */
 function NotificationCard({
   notification: n,
   onStatus,
@@ -617,123 +628,103 @@ function NotificationCard({
   onStatus: (n: Notification, status: string) => void;
   onChanged: () => void;
 }) {
+  const [showDetails, setShowDetails] = useState(false);
   const severity = severityOf(n);
   const status = n.data.status ?? "open";
-  const refs = n.data.refs ?? [];
   const kind = (n.data.kind ?? "").replace(/_/g, " ");
+  const facts = factsOf(n);
 
   return (
-    <Card id={`n-${n.id}`} padding={4} elevation="low" variant={status === "resolved" ? "muted" : "default"}>
-      <VStack gap={3}>
-        <HStack gap={3} vAlign="start" wrap="wrap">
+    <Card id={`n-${n.id}`} padding={5} elevation="low" variant={status === "resolved" ? "muted" : "default"}>
+      <VStack gap={4}>
+        <HStack gap={3} vAlign="center" wrap="wrap">
           <StackItem size="fill">
-            <VStack gap={1}>
-              <HStack gap={2} vAlign="center">
-                <StatusDot variant={severityDot(severity)} label={severity} />
+            <HStack gap={2} vAlign="center">
+              <StatusDot variant={severityDot(severity)} label={severity} />
+              <Badge label={severity} variant={severityVariant(severity)} />
+              {kind && (
                 <Text type="supporting" color="secondary">
-                  {severity}
-                  {kind ? ` · ${kind}` : ""}
+                  {kind}
                 </Text>
-              </HStack>
-              <Heading level={3}>{n.data.title || `${n.attr} mismatch`}</Heading>
-            </VStack>
+              )}
+              {status !== "open" && <Badge label={status.replace("_", " ")} variant="neutral" />}
+            </HStack>
           </StackItem>
-          <HStack gap={2} vAlign="center">
-            <Badge label={status.replace("_", " ")} variant={severityVariant(severity)} />
-            <Button
-              label={status === "resolved" ? "Reopen" : "Resolve"}
-              variant="secondary"
-              size="sm"
-              onClick={() => onStatus(n, status === "resolved" ? "open" : "resolved")}
-            />
-          </HStack>
+          <Button
+            label={status === "resolved" ? "Reopen" : "Resolve"}
+            variant="secondary"
+            size="sm"
+            onClick={() => onStatus(n, status === "resolved" ? "open" : "resolved")}
+          />
         </HStack>
 
-        {(n.erp_val || n.customer_val) && (
-          <HStack gap={4} wrap="wrap">
-            <VStack gap={0}>
-              <Text type="supporting" color="secondary">
-                ERP · {n.attr.replace(/_/g, " ")}
-              </Text>
-              <Text weight="semibold">{n.erp_val ?? "–"}</Text>
-            </VStack>
-            <VStack gap={0}>
-              <Text type="supporting" color="secondary">
-                Actual
-              </Text>
-              <Text weight="semibold">{n.customer_val ?? "–"}</Text>
-            </VStack>
-          </HStack>
-        )}
+        <Heading level={2}>{n.data.headline || n.data.title || `${n.attr} mismatch`}</Heading>
 
-        {n.data.details && <Text color="secondary">{n.data.details}</Text>}
+        {facts.length > 0 && <FactGrid facts={facts} />}
+
+        <SourceFiles paths={n.data.refs ?? []} />
+
         {(n.data.solutions ?? []).length > 0 && <SolutionList notification={n} onChanged={onChanged} />}
 
         <HStack gap={3} vAlign="center" wrap="wrap">
-          {refs.length > 0 && (
-            <Text type="supporting" color="secondary">
-              {refs.length} {refs.length === 1 ? "source" : "sources"}: {refs.join(", ")}
-            </Text>
-          )}
           <Text type="supporting" color="secondary">
             Last seen {localTime(n.seen_at)}
             {n.data.status_note ? ` · ${n.data.status_note}` : ""}
           </Text>
+          {n.data.details && (
+            <Button
+              label={showDetails ? "Hide details" : "More details"}
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDetails((value) => !value)}
+            />
+          )}
         </HStack>
+        {showDetails && n.data.details && <Text color="secondary">{n.data.details}</Text>}
       </VStack>
     </Card>
   );
 }
 
-const SOLUTION_KIND: Record<Solution["kind"], string> = {
-  email: "Email",
-  claim: "Claim",
-  internal: "Internal",
-  decision: "Decision",
-};
-
-/** Proposed solutions of a notification; email solutions open a review popup. */
+/** Potential solutions of an issue; a solution with an email drafts it in a popup. */
 function SolutionList({ notification, onChanged }: { notification: Notification; onChanged: () => void }) {
   const [open, setOpen] = useState<number | null>(null);
   const solutions = notification.data.solutions ?? [];
 
   return (
-    <VStack gap={2}>
-      <Heading level={4}>How to solve it</Heading>
-      <List density="compact" listStyle="decimal" hasDividers>
-        {solutions.map((solution, index) => (
-          <ListItem
-            key={index}
-            label={solution.title}
-            description={
-              <VStack gap={1}>
-                <Text type="supporting">{solution.description}</Text>
-                <Text type="supporting" color="secondary">
-                  {[solution.owner, solution.deadline && `by ${solution.deadline}`, solution.cost]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </Text>
-                {solution.approval && (
-                  <Text type="supporting" color="secondary">
-                    Approval: {solution.approval}
-                  </Text>
-                )}
-              </VStack>
-            }
-            startContent={<Badge label={SOLUTION_KIND[solution.kind] ?? solution.kind} variant="neutral" />}
-            endContent={
-              solution.email ? (
-                <Button
-                  label={solution.status === "sent" ? "Sent" : "Review email"}
-                  variant={solution.status === "sent" ? "secondary" : "primary"}
-                  size="sm"
-                  onClick={() => setOpen(index)}
-                />
-              ) : undefined
-            }
-          />
-        ))}
-      </List>
+    <VStack gap={3}>
+      <Heading level={4}>Potential solutions</Heading>
+      {solutions.map((solution, index) => (
+        <HStack key={index} gap={3} vAlign="start" wrap="wrap">
+          <StackItem size="fill">
+            <VStack gap={1}>
+              <Text weight="semibold">
+                <Rich text={solution.title} />
+              </Text>
+              <Text>
+                <Rich text={solution.description} />
+              </Text>
+              <Text type="supporting" color="secondary">
+                {[
+                  solution.owner,
+                  solution.deadline && `by ${solution.deadline}`,
+                  solution.cost,
+                  solution.approval && `approval: ${solution.approval}`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </Text>
+            </VStack>
+          </StackItem>
+          {solution.email && (
+            <Button
+              label={solution.status === "sent" ? "Email sent" : "Draft email"}
+              variant={solution.status === "sent" ? "secondary" : "primary"}
+              onClick={() => setOpen(index)}
+            />
+          )}
+        </HStack>
+      ))}
       {open !== null && solutions[open] && (
         <SolutionEmailDialog
           notification={notification}
