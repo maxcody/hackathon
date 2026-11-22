@@ -1,2 +1,19 @@
 @import "@astryxdesign/core/reset.css";
 @import "@astryxdesign/core/astryx.css";
+
+/* Agent "Working…" status: a light band sweeps through the words while the agent thinks.
+   Astryx has no animated-text component, so this is the one custom style (tokens only). */
+.thinking {
+  background: linear-gradient(100deg, var(--color-text-secondary) 40%, var(--color-text-primary) 50%, var(--color-text-secondary) 60%) 0 0 / 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: thinking-sweep 1.8s linear infinite;
+}
+@keyframes thinking-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thinking { animation: none; color: var(--color-text-secondary); background: none; }
+}

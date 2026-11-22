@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
+import type { ReactNode } from "react";
 import { VStack, HStack, StackItem } from "@astryxdesign/core/Layout";
-import { Text, Heading } from "@astryxdesign/core/Text";
+import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { Button } from "@astryxdesign/core/Button";
@@ -9,8 +10,10 @@ import { Card } from "@astryxdesign/core/Card";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
-import { Avatar } from "@astryxdesign/core/Avatar";
 import { Divider } from "@astryxdesign/core/Divider";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Icon } from "@astryxdesign/core/Icon";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 
 /** An email an agent proposes, as written in an `email-draft` code block. */
 export interface Draft {
@@ -123,6 +126,49 @@ export function sameDraft(a: Draft, b: Draft): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+/** One header line of a mail window (To, Cc, Subject): a fixed label column, then the value. */
+function mailLine(label: string, value: ReactNode, end?: ReactNode) {
+  return (
+    <>
+      <HStack gap={3} vAlign="center" paddingBlock={2}>
+        <VStack width={64}>
+          <Text color="secondary">{label}</Text>
+        </VStack>
+        <StackItem size="fill">{value}</StackItem>
+        {end}
+      </HStack>
+      <Divider />
+    </>
+  );
+}
+
+/** A header line's value: an input while editing, plain text once sent. */
+function mailField(editable: boolean, label: string, value: string, set: (v: string) => void, weight?: "semibold") {
+  return editable ? (
+    <TextInput label={label} isLabelHidden value={value} onChange={set} />
+  ) : (
+    <Text weight={weight}>{value || "–"}</Text>
+  );
+}
+
+/** A plain-text email body: paragraphs on blank lines, single line breaks kept. */
+function MailBody({ text }: { text: string }) {
+  return (
+    <VStack gap={3}>
+      {text.split(/\n\s*\n/).map((paragraph, index) => (
+        <Text key={index} display="block" as="p">
+          {paragraph.split("\n").map((line, i) => (
+            <Fragment key={i}>
+              {i > 0 && <br />}
+              {line}
+            </Fragment>
+          ))}
+        </Text>
+      ))}
+    </VStack>
+  );
+}
+
 /** Mail-program style preview of a draft; editable with a Send button while `onSend` is given. */
 export function EmailDraftCard({
   draft,
@@ -148,68 +194,38 @@ export function EmailDraftCard({
   const [showCc, setShowCc] = useState(draft.cc.length > 0);
   const editable = !!onSend;
   const edited = { to: addresses(to), cc: addresses(cc), subject, body };
-  const initial = (edited.to[0] ?? draft.to[0] ?? "?").slice(0, 1).toUpperCase();
+  const line = mailLine;
+  const field = (label: string, value: string, set: (v: string) => void, weight?: "semibold") =>
+    mailField(editable, label, value, set, weight);
 
   return (
-    <Card padding={4} elevation="low">
+    <Card padding={4} elevation="low" width="100%">
       <VStack gap={3}>
-        <HStack gap={3} vAlign="start">
-          <Avatar name={initial} size="sm" />
-          <StackItem size="fill">
-            <VStack gap={2}>
-              {editable ? (
-                <TextInput label="Subject" value={subject} onChange={setSubject} placeholder="Subject" />
-              ) : (
-                <Heading level={4}>{draft.subject || "(no subject)"}</Heading>
-              )}
-              <HStack gap={2} vAlign="end" wrap="wrap">
-                {editable ? (
-                  <StackItem size="fill">
-                    <TextInput label="To" value={to} onChange={setTo} />
-                  </StackItem>
-                ) : (
-                  <HStack gap={1} wrap="wrap">
-                    <Text type="supporting" color="secondary">
-                      To
-                    </Text>
-                    {draft.to.map((address) => (
-                      <Badge key={address} label={address} variant="neutral" />
-                    ))}
-                  </HStack>
-                )}
-                {editable && !showCc && (
-                  <Button label="Cc" variant="ghost" size="sm" onClick={() => setShowCc(true)} />
-                )}
-              </HStack>
-              {(showCc || (!editable && draft.cc.length > 0)) &&
-                (editable ? (
-                  <TextInput label="Cc" value={cc} onChange={setCc} />
-                ) : (
-                  <HStack gap={1} wrap="wrap">
-                    <Text type="supporting" color="secondary">
-                      Cc
-                    </Text>
-                    {draft.cc.map((address) => (
-                      <Badge key={address} label={address} variant="neutral" />
-                    ))}
-                  </HStack>
-                ))}
-            </VStack>
-          </StackItem>
+        <HStack gap={2} vAlign="center" hAlign="between">
+          <Text weight="semibold">{editable ? "New message" : "Email"}</Text>
           {status && <Badge label={status} variant="success" />}
         </HStack>
+        <VStack gap={0}>
+          {line(
+            "To",
+            field("To", editable ? to : draft.to.join(", "), setTo),
+            editable && !showCc ? <Button label="Cc" variant="ghost" size="sm" onClick={() => setShowCc(true)} /> : undefined,
+          )}
+          {(showCc || (!editable && draft.cc.length > 0)) &&
+            line("Cc", field("Cc", editable ? cc : draft.cc.join(", "), setCc))}
+          {line("Subject", field("Subject", editable ? subject : draft.subject, setSubject, "semibold"))}
+        </VStack>
 
         {editable ? (
           <TextArea
             label="Message"
+            isLabelHidden
             value={body}
             onChange={setBody}
-            rows={Math.min(16, Math.max(4, body.split("\n").length + 1))}
+            rows={Math.min(24, Math.max(6, body.split("\n").length + 2))}
           />
         ) : (
-          <Text display="block" as="p">
-            {draft.body}
-          </Text>
+          <MailBody text={draft.body} />
         )}
 
         {translation && (
@@ -310,47 +326,47 @@ export function ComposeWindow({
 
   return (
     <VStack gap={0}>
-      <HStack gap={3} padding={4} vAlign="center" hAlign="between">
-        <VStack gap={0}>
-          <Text type="supporting" color="secondary">
-            {context}
-          </Text>
-          <Text weight="semibold">{title}</Text>
-        </VStack>
-        <HStack gap={2} vAlign="center">
-          {status && <Badge label={status} variant="success" />}
-          <Button label="Close" variant="ghost" size="sm" isDisabled={busy} onClick={onClose} />
-        </HStack>
+      {/* One title bar: what the email solves, then the solution; close on the right */}
+      <HStack gap={3} paddingInline={5} paddingBlock={4} vAlign="center">
+        <StackItem size="fill">
+          <VStack gap={0}>
+            <Text type="supporting" color="secondary" maxLines={1}>
+              {context}
+            </Text>
+            <Text weight="semibold">{title}</Text>
+          </VStack>
+        </StackItem>
+        {status && <Badge label={status} variant="success" />}
+        <IconButton
+          label="Close"
+          variant="ghost"
+          icon={<Icon icon={XMarkIcon} size="sm" />}
+          isDisabled={busy}
+          onClick={onClose}
+        />
       </HStack>
       <Divider />
-      <VStack gap={3} padding={4}>
+      <VStack gap={4} paddingInline={5} paddingBlock={4}>
+        <VStack gap={0}>
+          {mailLine(
+            "To",
+            mailField(editable, "To", editable ? to : draft.to.join(", "), setTo),
+            editable && !showCc ? <Button label="Cc" variant="ghost" size="sm" onClick={() => setShowCc(true)} /> : undefined,
+          )}
+          {(showCc || (!editable && draft.cc.length > 0)) &&
+            mailLine("Cc", mailField(editable, "Cc", editable ? cc : draft.cc.join(", "), setCc))}
+          {mailLine("Subject", mailField(editable, "Subject", editable ? subject : draft.subject, setSubject, "semibold"))}
+        </VStack>
         {editable ? (
-          <>
-            <HStack gap={2} vAlign="end" wrap="wrap">
-              <StackItem size="fill">
-                <TextInput label="To" value={to} onChange={setTo} />
-              </StackItem>
-              {!showCc && <Button label="Cc" variant="ghost" size="sm" onClick={() => setShowCc(true)} />}
-            </HStack>
-            {showCc && <TextInput label="Cc" value={cc} onChange={setCc} />}
-            <TextInput label="Subject" value={subject} onChange={setSubject} />
-            <TextArea label="Message" value={body} onChange={setBody} rows={10} />
-          </>
+          <TextArea
+            label="Message"
+            isLabelHidden
+            value={body}
+            onChange={setBody}
+            rows={Math.min(14, Math.max(6, body.split("\n").length + 2))}
+          />
         ) : (
-          <VStack gap={2}>
-            <Text type="supporting" color="secondary">
-              To · {draft.to.join(", ")}
-            </Text>
-            {draft.cc.length > 0 && (
-              <Text type="supporting" color="secondary">
-                Cc · {draft.cc.join(", ")}
-              </Text>
-            )}
-            <Text weight="semibold">{draft.subject}</Text>
-            <Text display="block" as="p">
-              {draft.body}
-            </Text>
-          </VStack>
+          <MailBody text={draft.body} />
         )}
 
         {extraTranslation && (

@@ -308,16 +308,18 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
                 <UserMessage text={pending} />
               </ChatMessageBubble>
             </ChatMessage>
-            <ChatSystemMessage>Working… {elapsed}s</ChatSystemMessage>
-            {partialReply && (
-              <ChatMessage
-                sender="assistant"
-                avatar={<Avatar name={agent.name} size="sm" />}
-                name={agent.name}
-              >
+            <ChatMessage
+              sender="assistant"
+              avatar={<Avatar name={agent.name} size="sm" />}
+              name={agent.name}
+              metadata={partialReply ? <Text type="supporting"><span className="thinking">Working… {elapsed}s</span></Text> : undefined}
+            >
+              {partialReply ? (
                 <AgentReply text={partialReply} sent={null} />
-              </ChatMessage>
-            )}
+              ) : (
+                <Text type="supporting"><span className="thinking">Working… {elapsed}s</span></Text>
+              )}
+            </ChatMessage>
           </>
         )}
       </ChatMessageList>

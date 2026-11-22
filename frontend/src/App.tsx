@@ -14,6 +14,7 @@ import { Layout, LayoutContent, HStack, VStack, StackItem } from "@astryxdesign/
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { Button } from "@astryxdesign/core/Button";
 import { Badge } from "@astryxdesign/core/Badge";
+import { Avatar } from "@astryxdesign/core/Avatar";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Card } from "@astryxdesign/core/Card";
 import { Section } from "@astryxdesign/core/Section";
@@ -25,7 +26,7 @@ import { Icon } from "@astryxdesign/core/Icon";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Popover } from "@astryxdesign/core/Popover";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { Dialog } from "@astryxdesign/core/Dialog";
 import { Divider } from "@astryxdesign/core/Divider";
 import { getSkillRun, importMaster, importSheets, listNotifications, sendSolutionEmail, startSkillRun, syncPortal, updateNotificationData } from "./api";
 import type { Notification, Severity, SkillRun, Solution } from "./types";
@@ -141,11 +142,11 @@ export function App() {
       sideNav={<AppSideNav location={navLocation} />}
       topNav={
         <TopNav
-          heading={<Text weight="semibold">{pageTitle(navLocation)}</Text>}
+          label={pageTitle(navLocation)}
           endContent={
-            <HStack gap={2} vAlign="center">
+            <HStack gap={3} vAlign="center">
               <NotificationBell notifications={notifications ?? []} />
-              <Badge label="S" variant="neutral" />
+              <Avatar name="Soony" size="sm" />
             </HStack>
           }
         />
@@ -171,18 +172,20 @@ function AppSideNav({ location }: { location: string }) {
     <SideNav
       collapsible
       header={
-        <SideNavHeading
-          heading="Linewatch"
-          subheading="Soony · Grand Heist 6"
-          headingHref="#overview"
-        />
+        <SideNavHeading heading="Linewatch" headingHref="#overview" />
       }
       footer={
+        // color="inherit" takes the sidebar's light text color from the theme (secondary gray is unreadable on dark green)
         <VStack gap={1} padding={3}>
-          <Text type="supporting" color="secondary">
+          <Text type="supporting" color="inherit">
+            Soony · Grand Heist 6
+          </Text>
+          <Text type="supporting" color="inherit">
             Launch Sun 22 Nov, 20:00
           </Text>
-          <Text weight="semibold">{timeToLaunch()}</Text>
+          <Text weight="semibold" color="inherit">
+            {timeToLaunch()}
+          </Text>
         </VStack>
       }
     >
@@ -519,7 +522,17 @@ function RiskCheck({ onFinished }: { onFinished: () => Promise<void> }) {
 /** Bell in the top bar: open-notification count and a dropdown of the latest ones. */
 function NotificationBell({ notifications }: { notifications: Notification[] }) {
   const [open, setOpen] = useState(false);
-  const openItems = notifications.filter(isOpen).sort((a, b) => b.seen_at.localeCompare(a.seen_at));
+  // Most severe first, newest first within a severity: the bell should surface what needs a person now.
+  const openItems = notifications
+    .filter(isOpen)
+    .sort(
+      (a, b) =>
+        severityOrder.indexOf(severityOf(a)) - severityOrder.indexOf(severityOf(b)) ||
+        b.seen_at.localeCompare(a.seen_at),
+    );
+  const label = (severity: Severity) => severity[0].toUpperCase() + severity.slice(1);
+  const short = (value: string) =>
+    new Date(value).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
   const urgent = openItems.some((n) => severityOf(n) === "critical");
 
   return (
@@ -532,6 +545,7 @@ function NotificationBell({ notifications }: { notifications: Notification[] }) 
         width={340}
         padding={0}
         label="Latest notifications"
+        hasAutoFocus={false}
         content={
           <VStack gap={0}>
             <HStack gap={2} padding={3} hAlign="between" vAlign="center">
@@ -542,12 +556,13 @@ function NotificationBell({ notifications }: { notifications: Notification[] }) 
             </HStack>
             <Divider />
             {openItems.length ? (
-              <List density="compact" edge="flush">
+              <List density="compact">
                 {openItems.slice(0, 6).map((n) => (
                   <ListItem
                     key={n.id}
+                    align="first-line"
                     label={n.data.title || `${n.attr} mismatch`}
-                    description={`${severityOf(n)} · ${localTime(n.seen_at)}`}
+                    description={`${label(severityOf(n))} · ${short(n.seen_at)}`}
                     startContent={<StatusDot variant={severityDot(severityOf(n))} label={severityOf(n)} />}
                     href={`#n-${n.id}`}
                     onClick={() => setOpen(false)}
@@ -572,17 +587,22 @@ function NotificationBell({ notifications }: { notifications: Notification[] }) 
           </VStack>
         }
       >
-        <IconButton
-          label={`Notifications, ${openItems.length} open`}
-          icon={<Icon icon={BellIcon} size="sm" />}
-        />
+        {openItems.length > 0 ? (
+          <Button
+            label="Notifications"
+            variant="ghost"
+            icon={<Icon icon={BellIcon} size="sm" />}
+            endContent={
+              <Badge
+                label={openItems.length > 99 ? "99+" : String(openItems.length)}
+                variant={urgent ? "error" : "neutral"}
+              />
+            }
+          />
+        ) : (
+          <IconButton label="Notifications, none open" variant="ghost" icon={<Icon icon={BellIcon} size="sm" />} />
+        )}
       </Popover>
-      {openItems.length > 0 && (
-        <Badge
-          label={openItems.length > 99 ? "99+" : String(openItems.length)}
-          variant={urgent ? "error" : "neutral"}
-        />
-      )}
     </HStack>
   );
 }
@@ -765,12 +785,7 @@ function SolutionEmailDialog({
   }
 
   return (
-    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && !busy && onClose()} width={640} purpose="form" padding={0}>
-      <DialogHeader
-        title={solution.title}
-        subtitle={notification.data.title ?? ""}
-        onOpenChange={(isOpen) => !isOpen && !busy && onClose()}
-      />
+    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && !busy && onClose()} width={680} maxHeight="88dvh" purpose="form" padding={0}>
       <ComposeWindow
         context={notification.data.title ?? ""}
         title={solution.title}

@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Avatar } from "@astryxdesign/core/Avatar";
+import { Divider } from "@astryxdesign/core/Divider";
+import { Link } from "@astryxdesign/core/Link";
 import { Layout, LayoutContent, LayoutPanel, HStack, VStack, StackItem } from "@astryxdesign/core/Layout";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { Button } from "@astryxdesign/core/Button";
@@ -9,7 +12,6 @@ import { List, ListItem } from "@astryxdesign/core/List";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Card } from "@astryxdesign/core/Card";
 import { Section } from "@astryxdesign/core/Section";
-import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList";
 import { Timestamp } from "@astryxdesign/core/Timestamp";
 import { Icon } from "@astryxdesign/core/Icon";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
@@ -259,18 +261,34 @@ export function InboxPage() {
           ) : messages.length === 0 ? (
             <EmptyState title="No messages." isCompact />
           ) : (
-            <List density="compact" edge="flush">
+            <List density="balanced" hasDividers>
               {messages.map((m) => (
                 <ListItem
                   key={m.message_id}
-                  label={m.direction === "out" ? `To ${m.to.join(", ")}` : m.sender}
-                  description={`${m.direction === "out" ? "↗ " : "↙ "}${m.subject || "(no subject)"} · ${m.body.replace(/\s+/g, " ").slice(0, 90)}`}
+                  align="start"
+                  label={
+                    <Text weight="semibold" maxLines={1}>
+                      {m.direction === "out" ? `To: ${m.to.join(", ")}` : m.sender}
+                    </Text>
+                  }
+                  description={
+                    <VStack gap={0}>
+                      <Text maxLines={1}>{m.subject || "(no subject)"}</Text>
+                      <Text type="supporting" color="secondary" maxLines={1}>
+                        {m.body.replace(/\s+/g, " ")}
+                      </Text>
+                      {m.direction === "out" && m.status && (
+                        <Text type="supporting" color="secondary">
+                          {STATUS_LABEL[m.status] ?? m.status}
+                        </Text>
+                      )}
+                    </VStack>
+                  }
                   endContent={
                     <VStack gap={1} hAlign="end">
-                      <Text type="supporting" color="secondary">
+                      <Text type="supporting" color="secondary" hasTabularNumbers>
                         {when(m.at)}
                       </Text>
-                      <StatusChip message={m} />
                       <AnalysisChip message={m} />
                     </VStack>
                   }
@@ -285,51 +303,69 @@ export function InboxPage() {
       content={
         <LayoutContent role="main" id="inbox">
           {open ? (
-            <VStack gap={4} padding={4}>
+            <VStack gap={5} padding={6}>
+              {/* Mail header: subject, then sender with recipients and date, like a mail client */}
               <Heading level={2}>{open.subject || "(no subject)"}</Heading>
-              <MetadataList columns="multi">
-                <MetadataListItem label="From">{open.sender || "–"}</MetadataListItem>
-                <MetadataListItem label="To">{open.to.join(", ")}</MetadataListItem>
-                {open.cc.length > 0 && (
-                  <MetadataListItem label="Cc">{open.cc.join(", ")}</MetadataListItem>
-                )}
-                <MetadataListItem label="Date">
-                  <Timestamp value={open.at} format="date_time" />
-                </MetadataListItem>
-                {original && (
-                  <MetadataListItem label="Reply to">
-                    <Button
-                      label={original.subject || "(no subject)"}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setFolder("all");
-                        setSelected(original.message_id);
-                      }}
-                    />
-                  </MetadataListItem>
-                )}
-                {open.direction === "out" && (
-                  <MetadataListItem label="Status">
-                    {open.status ? (
-                      <HStack gap={2} vAlign="center">
-                        <StatusChip message={open} />
-                        {open.status_at && <Timestamp value={open.status_at} format="date_time" />}
-                      </HStack>
-                    ) : (
-                      <Text color="secondary">
-                        {box?.status_source ? "No delivery event yet" : "Unknown (Brevo not configured)"}
+              <HStack gap={3} vAlign="start">
+                <Avatar name={open.sender || "?"} size="md" />
+                <StackItem size="fill">
+                  <VStack gap={0}>
+                    <Text weight="semibold">{open.sender || "–"}</Text>
+                    <Text type="supporting" color="secondary">
+                      To: {open.to.join(", ")}
+                    </Text>
+                    {open.cc.length > 0 && (
+                      <Text type="supporting" color="secondary">
+                        Cc: {open.cc.join(", ")}
                       </Text>
                     )}
-                  </MetadataListItem>
-                )}
-              </MetadataList>
+                    {original && (
+                      <Text type="supporting" color="secondary">
+                        In reply to{" "}
+                        <Link
+                          href="#inbox"
+                          type="supporting"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            setFolder("all");
+                            setSelected(original.message_id);
+                          }}
+                        >
+                          {original.subject || "(no subject)"}
+                        </Link>
+                      </Text>
+                    )}
+                  </VStack>
+                </StackItem>
+                <VStack gap={1} hAlign="end">
+                  <Text type="supporting" color="secondary">
+                    <Timestamp value={open.at} format="date_time" />
+                  </Text>
+                  {open.direction === "out" &&
+                    (open.status ? (
+                      <StatusChip message={open} />
+                    ) : (
+                      <Text type="supporting" color="secondary">
+                        {box?.status_source ? "No delivery event yet" : "Delivery status unknown"}
+                      </Text>
+                    ))}
+                </VStack>
+              </HStack>
+              <Divider />
               {open.direction === "in" && <AnalysisPanel message={open} onRetry={() => void load()} />}
-              <Section padding={4} variant="muted">
-                <Text display="block" as="p">
-                  {open.body}
-                </Text>
-              </Section>
+              {/* The body as written: paragraphs on blank lines, single line breaks kept */}
+              <VStack gap={4}>
+                {open.body.split(/\n\s*\n/).map((paragraph, index) => (
+                  <Text key={index} display="block" as="p">
+                    {paragraph.split("\n").map((line, i) => (
+                      <Fragment key={i}>
+                        {i > 0 && <br />}
+                        {line}
+                      </Fragment>
+                    ))}
+                  </Text>
+                ))}
+              </VStack>
             </VStack>
           ) : (
             <EmptyState title="Select a message." />

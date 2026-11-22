@@ -1,0 +1,58 @@
+{
+  "name": "linewatch",
+  "like": "neutral",
+  "mode": "both",
+  "settings": [
+    {
+      "thing": "accent",
+      "value": "#487553",
+      "source": "dial"
+    },
+    {
+      "thing": "background-color",
+      "value": "#1e3028",
+      "source": "property",
+      "on": "side-nav"
+    },
+    {
+      "thing": "--color-text-primary",
+      "value": "#eaf0e9",
+      "source": "token",
+      "on": "side-nav"
+    },
+    {
+      "thing": "background-color",
+      "value": "#344d3d",
+      "source": "property",
+      "on": "side-nav-item",
+      "state": "selected"
+    },
+    {
+      "thing": "color",
+      "value": "#dbe6dc",
+      "source": "property",
+      "on": "side-nav-item"
+    },
+    {
+      "thing": "color",
+      "value": "#ffffff",
+      "source": "property",
+      "on": "side-nav-item",
+      "state": "selected"
+    },
+    {
+      "thing": "color",
+      "value": "#eaf0e9",
+      "source": "property",
+      "on": "side-nav"
+    },
+    {
+      "thing": "--color-text-primary",
+      "value": "#eaf0e9",
+      "source": "token",
+      "on": "app-shell-sidenav"
+    }
+  ],
+  "lifted": [],
+  "palette": "8563db082b5b31a8f71de36e3597503f6d77c45ce3d685f4c873f2fd17df2ef6"
+}

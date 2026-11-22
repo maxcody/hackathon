@@ -9,7 +9,7 @@ import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Link } from "@astryxdesign/core/Link";
-import { Table, proportional } from "@astryxdesign/core/Table";
+import { Table, pixel, proportional } from "@astryxdesign/core/Table";
 import type { TableColumn } from "@astryxdesign/core/Table";
 import { useTableSortable, useTableSortableState } from "@astryxdesign/core/Table";
 import { getDataset, getLookups, listDatasets } from "./api";
@@ -43,6 +43,23 @@ const STATUS_TONE: [RegExp, "error" | "success" | "neutral"][] = [
   [/delay|held|hold|reject|cancel|block|expired|awaiting|conditional/i, "error"],
   [/arrived|deliver|received|closed|complete|qualified|active|released|confirmed/i, "success"],
 ];
+
+/** Columns shown inside another column's cell instead of on their own (see renderCell). */
+const FOLDED: Record<string, string[]> = {
+  suppliers: ["country", "language", "email", "phone"],
+  parts: ["revision", "note"],
+};
+
+/** Width by what a column holds: numbers stay narrow, names and notes get the room. */
+function columnWidth(column: DatasetColumn) {
+  if (["qty", "money", "balance"].includes(column.kind)) return pixel(104);
+  if (column.kind === "flag") return pixel(80);
+  if (column.kind === "date" || column.kind === "status") return pixel(column.kind === "date" ? 140 : 112);
+  if (column.multi && column.kind === "part") return proportional(1, { minWidth: 120 });
+  if (column.kind === "part" || column.kind === "supplier") return proportional(2, { minWidth: 150 });
+  if (column.kind === "file") return proportional(2, { minWidth: 200 });
+  return proportional(1, { minWidth: 130 });
+}
 
 /** The ids in a cell; multi-value cells separate them with "|". */
 function ids(value: Cell, multi: boolean): string[] {
@@ -233,38 +250,44 @@ export function DataPage({ notifications }: { notifications: Notification[] }) {
   const sortPlugin = useTableSortable<DataRow>(sortConfig);
 
   /** One id as a link to its own table, with its name and any documents behind it. */
-  function idLink(id: string, column: DatasetColumn) {
+  function idLink(id: string, column: DatasetColumn, meta?: string[]) {
     const target = column.kind === "po" && !openOrders.has(id) ? undefined : LINKS[column.kind];
     const name =
       column.kind === "part" ? lookups.parts[id] : column.kind === "supplier" ? lookups.suppliers[id] : undefined;
     const docs = column.kind === "po" || column.kind === "delivery_note" ? lookups.documents[id] ?? [] : [];
-    const label = column.kind === "supplier" && name ? name : id;
+    // "Grand Heist 6 – Standard Edition (game card)" → "Standard Edition": the edition is what matters in "Used in".
+    const edition = column.key === "used_in" && name ? name.replace(/^.*? – /, "").replace(/\s*\(.*?\)\s*$/, "") : null;
+    const label = edition ?? (column.kind === "supplier" && name ? name : id);
     const isSelf = target && target.dataset === view.key && target.column === column.key;
+    const weight = column.kind === "supplier" || (isSelf && column.kind === "part") ? "semibold" : "normal";
     return (
       <VStack key={id} gap={0}>
         {target && !isSelf ? (
-          <Button
-            label={label}
-            variant="ghost"
-            size="sm"
-            onClick={() =>
+          <Link
+            href="#data"
+            weight={weight}
+            tooltip={edition || (column.kind === "supplier" && view.key !== "suppliers") ? id : undefined}
+            onClick={(event) => {
+              event.preventDefault();
               open({
                 key: target.dataset,
                 filter: { column: target.column, value: id, label: name ? `${id} · ${name}` : id },
-              })
-            }
-          />
+              });
+            }}
+          >
+            {label}
+          </Link>
         ) : (
-          <Text weight={column.kind === "supplier" ? "semibold" : "normal"}>{label}</Text>
+          <Text weight={weight}>{label}</Text>
         )}
-        {column.kind === "part" && name && (
+        {column.kind === "part" && name && !edition && (
           <Text type="supporting" color="secondary">
             {name}
           </Text>
         )}
-        {column.kind === "supplier" && name && (
+        {column.kind === "supplier" && name && view.key === "suppliers" && (
           <Text type="supporting" color="secondary">
-            {id}
+            {[id, ...(meta ?? [])].join(" · ")}
           </Text>
         )}
         {docs.map((path) => (
@@ -279,6 +302,64 @@ export function DataPage({ notifications }: { notifications: Notification[] }) {
   /** Render one cell according to its column kind. */
   function renderCell(item: DataRow, column: DatasetColumn) {
     const value = item.row[column.key];
+    // Suppliers answer "who do I contact, and are they OK": where they are sits under the name,
+    // and how to reach them sits under the contact person.
+    if (view.key === "suppliers" && column.key === "supplier_id") {
+      const where = [item.row.country, item.row.language?.toString().toUpperCase()].filter(Boolean).map(String);
+      return idLink(String(value), column, where);
+    }
+    // A part's revision rule and note qualify the part itself, so they sit under its name.
+    if (view.key === "parts" && column.key === "component_id") {
+      const extra = [item.row.revision, item.row.note].filter((v) => v != null && v !== "").map(String);
+      return (
+        <VStack gap={0}>
+          {idLink(String(value), column)}
+          {extra.map((text) => (
+            <Text key={text} type="supporting" color="secondary">
+              {text}
+            </Text>
+          ))}
+        </VStack>
+      );
+    }
+    // In the supplier list, parts are short id links; the full name shows on hover.
+    if (view.key === "suppliers" && column.key === "parts") {
+      return (
+        <HStack gap={2} wrap="wrap">
+          {ids(value, true).map((id) => (
+            <Link
+              key={id}
+              href="#data"
+              tooltip={lookups.parts[id]}
+              onClick={(event) => {
+                event.preventDefault();
+                open({ key: "parts", filter: { column: "component_id", value: id, label: lookups.parts[id] ? `${id} · ${lookups.parts[id]}` : id } });
+              }}
+            >
+              {id}
+            </Link>
+          ))}
+        </HStack>
+      );
+    }
+    if (view.key === "suppliers" && column.key === "contact") {
+      const { email, phone } = item.row;
+      return (
+        <VStack gap={0}>
+          <Text>{value ? String(value) : "–"}</Text>
+          {email && (
+            <Link href={`mailto:${email}`} type="supporting" maxLines={1} tooltip={String(email)}>
+              {String(email)}
+            </Link>
+          )}
+          {phone && (
+            <Text type="supporting" color="secondary" hasTabularNumbers>
+              {String(phone)}
+            </Text>
+          )}
+        </VStack>
+      );
+    }
     if (value == null || value === "") return <Text color="secondary">–</Text>;
     switch (column.kind) {
       case "balance": {
@@ -302,7 +383,7 @@ export function DataPage({ notifications }: { notifications: Notification[] }) {
         return <Text>{formatDate(value)}</Text>;
       case "flag":
         return value === "Y" ? (
-          <Badge label="Yes" variant="info" />
+          <Text weight="semibold">Yes</Text>
         ) : value === "N" ? (
           <Text color="secondary">No</Text>
         ) : (
@@ -343,51 +424,62 @@ export function DataPage({ notifications }: { notifications: Notification[] }) {
 
   const columns: TableColumn<DataRow>[] = useMemo(() => {
     if (!table) return [];
-    const cols: TableColumn<DataRow>[] = table.columns.map((column) => ({
+    const folded = new Set(FOLDED[table.key] ?? []);
+    const shown = table.columns.filter(
+      (column) =>
+        !folded.has(column.key) &&
+        // A column empty in every row only adds a line of dashes.
+        table.rows.some((row) => row[column.key] != null && row[column.key] !== ""),
+    );
+    const cols: TableColumn<DataRow>[] = shown.map((column) => ({
       key: column.key,
       header: column.label,
       align: ["qty", "money", "balance"].includes(column.kind) ? "end" : "start",
-      width: proportional(1, { minWidth: 120 }),
-      renderCell: (item) => renderCell(item, column),
+      width: columnWidth(column),
+      // A row's open issues and its links to orders, shipments and so on sit under its id,
+      // where you look for them, instead of in columns at the far right.
+      renderCell: (item) =>
+        column === shown[0] ? (
+          <VStack gap={1}>
+            {renderCell(item, column)}
+            {item.issues.length > 0 && (
+              <Text type="supporting" weight="semibold" color="accent">
+                {item.issues.length === 1 ? "1 open issue" : `${item.issues.length} open issues`}
+              </Text>
+            )}
+            {table.related.length > 0 && related(item)}
+          </VStack>
+        ) : (
+          renderCell(item, column)
+        ),
     }));
-    if (table.related.length > 0) {
-      cols.push({
-        key: "related",
-        header: "Related",
-        renderCell: (item) => (
-          <HStack gap={1} wrap="wrap">
-            {table.related.map((r) => {
+    /** Links from a row to the rows about it in other tables. */
+    function related(item: DataRow) {
+      return (
+          <HStack gap={3} wrap="wrap">
+            {table!.related.map((r) => {
               const id = String(item.row[r.value_from] ?? "");
               const name = lookups.parts[id] ?? lookups.suppliers[id];
               return id ? (
-                <Button
+                <Link
                   key={r.label}
-                  label={r.label}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
+                  href="#data"
+                  type="supporting"
+                  onClick={(event) => {
+                    event.preventDefault();
                     open({
                       key: r.dataset,
                       filter: { column: r.column, value: id, label: name ? `${id} · ${name}` : id },
-                    })
-                  }
-                />
+                    });
+                  }}
+                >
+                  {r.label}
+                </Link>
               ) : null;
             })}
           </HStack>
-        ),
-      });
+      );
     }
-    cols.push({
-      key: "issues",
-      header: "Issues",
-      renderCell: (item) =>
-        item.issues.length ? (
-          <Badge label={item.issues.join(", ")} variant="warning" />
-        ) : (
-          <Text color="secondary">–</Text>
-        ),
-    });
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table, lookups, view.key, openOrders]);
@@ -405,8 +497,8 @@ export function DataPage({ notifications }: { notifications: Notification[] }) {
         </VStack>
       }
       start={
-        <LayoutPanel width={260} hasDivider label="Datasets" padding={2}>
-          <List density="compact" edge="flush">
+        <LayoutPanel width={232} hasDivider label="Datasets" padding={2}>
+          <List density="compact">
             {catalog.map((d) => (
               <ListItem
                 key={d.key}
