@@ -41,8 +41,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Hackathon API", lifespan=lifespan)
+# The dashboard normally runs on the Vite dev server; this folder only exists
+# after ``npm run build`` in ``frontend/`` and is not committed.
 static_dir = Path(__file__).parent / "static"
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+dashboard = static_dir / "react" / "index.html"
+if dashboard.exists():
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -60,10 +64,12 @@ app.include_router(skills.router)
 app.include_router(agent_workspace.router)
 
 
-@app.get("/", include_in_schema=False)
-async def home() -> FileResponse:
-    """Serve the built React dashboard (``npm run build`` in ``frontend/``)."""
-    return FileResponse(static_dir / "react" / "index.html")
+if dashboard.exists():
+
+    @app.get("/", include_in_schema=False)
+    async def home() -> FileResponse:
+        """Serve the built React dashboard (``npm run build`` in ``frontend/``)."""
+        return FileResponse(dashboard)
 
 
 @app.get("/health")

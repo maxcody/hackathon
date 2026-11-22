@@ -45,3 +45,7 @@ build/
 
 # Astryx theme editor preview pages (regenerated on every theme change)
 frontend/themes/*/*.html
+
+# Built dashboard (npm run build in frontend/); the Vite dev server serves the UI
+backend/app/static/react/
+*.tsbuildinfo
