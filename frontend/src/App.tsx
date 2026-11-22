@@ -37,6 +37,7 @@ import { ReadinessPanel } from "./ReadinessPanel";
 import { InboxPage } from "./InboxPage";
 import { DataPage } from "./DataPage";
 import { FilesPage } from "./FilesPage";
+import { ComparisonBar } from "./IssueCard";
 import { threadState } from "./IssueThread";
 import { IssuePage, issueHref, parseIssueHash } from "./IssuePage";
 import {
@@ -653,6 +654,7 @@ function IssueSummary({ notification: n, thread, rank }: { notification: Notific
                 </Text>
               </VStack>
             ))}
+          <ComparisonBar n={n} compact />
           {(n.data.suppliers ?? []).length > 0 && <SupplierChain suppliers={n.data.suppliers ?? []} />}
           <StackItem size="fill" />
           <Divider />
