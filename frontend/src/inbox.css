@@ -35,3 +35,9 @@
 @media(max-width:760px){.inbox-panes{grid-template-columns:1fr;grid-template-rows:minmax(180px,40%) 1fr}.inbox-list{border-right:0;border-bottom:1px solid #ececea}}
 .inbox-notice-error{background:#fdf1ef;color:#a5453b}
 .inbox-link{padding:0;border:0;background:none;color:#487553;font:inherit;text-decoration:underline;cursor:pointer}
+.inbox-refresh{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid #e3e6e0;border-radius:8px;background:#fff;color:#3f4a44;font:600 12.5px "DM Sans",sans-serif;cursor:pointer}
+.inbox-refresh:hover{background:#f6f8f3}
+.inbox-refresh:disabled{color:#9aa39c;cursor:default}
+.inbox-refresh .spinning{display:inline-block;animation:inbox-spin .8s linear infinite}
+@keyframes inbox-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.inbox-refresh .spinning{animation:none}}

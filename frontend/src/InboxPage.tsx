@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getMailbox } from "./api";
 import type { MailMessage, Mailbox } from "./types";
 import "./inbox.css";
@@ -31,12 +31,24 @@ export function InboxPage() {
   const [folder, setFolder] = useState<"all" | "in" | "out">("all");
   const [selected, setSelected] = useState<string | null>(null);
 
-  useEffect(() => {
-    const load = () => getMailbox().then((value) => { setBox(value); setError(""); }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load the inbox."));
-    load();
-    const timer = window.setInterval(load, REFRESH_MS);
-    return () => window.clearInterval(timer);
+  const [loading, setLoading] = useState(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setBox(await getMailbox());
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not load the inbox.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => void load(), REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [load]);
 
   const messages = useMemo(() => (box?.messages ?? []).filter((m) => folder === "all" || m.direction === folder), [box, folder]);
   const open = messages.find((m) => m.message_id === selected) ?? messages[0];
@@ -54,6 +66,7 @@ export function InboxPage() {
           ))}
         </div>
         {box?.sender && <span className="inbox-account">{box.sender}</span>}
+        <button type="button" className="inbox-refresh" onClick={() => void load()} disabled={loading} aria-label="Refresh inbox"><span aria-hidden="true" className={loading ? "spinning" : ""}>↻</span> {loading ? "Refreshing…" : "Refresh"}</button>
       </header>
       {error && <p className="message message-error" role="alert">{error}</p>}
       {box && !box.incoming_configured && folder !== "out" && <p className="inbox-notice">Received mail is not connected yet. Supplier replies go to {box.sender ?? "the sender address"}; connect it with the Gmail Apps Script (see README, "Inbox").</p>}
