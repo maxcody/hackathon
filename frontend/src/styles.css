@@ -17,3 +17,34 @@
 @media (prefers-reduced-motion: reduce) {
   .thinking { animation: none; color: var(--color-text-secondary); background: none; }
 }
+
+/* Issue summary cards: lift and a green hairline on hover, a small press on click. */
+.issue-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 12px;
+}
+.issue-link > * {
+  transition:
+    transform 160ms ease-out,
+    box-shadow 160ms ease-out;
+}
+.issue-link:hover > *,
+.issue-link:focus-visible > * {
+  transform: translateY(-3px);
+  box-shadow: 0 0 0 1px var(--color-accent, #487553), 0 8px 20px rgb(0 0 0 / 0.25);
+}
+.issue-link:active > * {
+  transform: translateY(-1px) scale(0.99);
+}
+@media (prefers-reduced-motion: reduce) {
+  .issue-link > * {
+    transition: none;
+  }
+  .issue-link:hover > *,
+  .issue-link:focus-visible > *,
+  .issue-link:active > * {
+    transform: none;
+  }
+}

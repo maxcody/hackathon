@@ -4,6 +4,7 @@ import {
   BellIcon,
   ChartBarSquareIcon,
   FolderIcon,
+  ArrowLeftIcon,
   InboxIcon,
   Squares2X2Icon,
   CpuChipIcon,
@@ -25,6 +26,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Icon } from "@astryxdesign/core/Icon";
+import { Grid } from "@astryxdesign/core/Grid";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Popover } from "@astryxdesign/core/Popover";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
@@ -347,10 +349,6 @@ function IssuesPage({
   const [showResolved, setShowResolved] = useState(false);
   const [query, setQuery] = useState("");
 
-  useEffect(() => {
-    if (focus) document.getElementById(focus)?.scrollIntoView({ block: "start" });
-  }, [focus]);
-
   const visible = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return [...notifications]
@@ -386,6 +384,27 @@ function IssuesPage({
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not update the issue.");
     }
+  }
+
+  const detail = focus ? notifications.find((n) => `n-${n.id}` === focus) : undefined;
+  if (detail) {
+    return (
+      <Layout
+        height="fill"
+        contentWidth={1200}
+        content={
+          <LayoutContent role="main" id="issues">
+            <VStack gap={4} padding={6}>
+              {error && <Banner status="error" title={error} isDismissable onDismiss={() => setError(null)} />}
+              <HStack>
+                <Button label="All issues" variant="ghost" size="sm" href="#issues" icon={<Icon icon={ArrowLeftIcon} size="sm" />} />
+              </HStack>
+              <NotificationCard notification={detail} onStatus={setStatus} onChanged={() => void refresh()} />
+            </VStack>
+          </LayoutContent>
+        }
+      />
+    );
   }
 
   return (
@@ -450,16 +469,11 @@ function IssuesPage({
                 </HStack>
 
                 {visible.length ? (
-                  <VStack gap={3}>
+                  <Grid columns={{ minWidth: 320, max: 3 }} gap={3}>
                     {visible.map((n) => (
-                      <NotificationCard
-                        key={n.id}
-                        notification={n}
-                        onStatus={setStatus}
-                        onChanged={() => void refresh()}
-                      />
+                      <IssueSummary key={n.id} notification={n} />
                     ))}
-                  </VStack>
+                  </Grid>
                 ) : (
                   <EmptyState
                     title={notifications.length ? "Nothing matches this filter." : "No issues yet"}
@@ -630,6 +644,51 @@ function factsOf(n: Notification): Fact[] {
     n.erp_val ? { label: `ERP · ${attr}`, value: n.erp_val } : null,
     n.customer_val ? { label: "Actual", value: n.customer_val } : null,
   ].filter((fact): fact is Fact => fact !== null);
+}
+
+/** Small card for the issue list: severity, headline and the key figures; opens the full issue. */
+function IssueSummary({ notification: n }: { notification: Notification }) {
+  const severity = severityOf(n);
+  const status = n.data.status ?? "open";
+  const kind = (n.data.kind ?? "").replace(/_/g, " ");
+  const solutions = (n.data.solutions ?? []).length;
+  return (
+    <a href={`#n-${n.id}`} className="issue-link">
+      <Card padding={4} elevation="low" variant={status === "resolved" ? "muted" : "default"}>
+        <VStack gap={3}>
+          <HStack gap={2} vAlign="center">
+            <Badge label={severity} variant={severityVariant(severity)} />
+            {kind && (
+              <Text type="supporting" color="secondary">
+                {kind}
+              </Text>
+            )}
+            {status !== "open" && <Badge label={status.replace("_", " ")} variant="neutral" />}
+          </HStack>
+          <Text weight="medium">{n.data.headline || n.data.title || `${n.attr} mismatch`}</Text>
+          <HStack gap={4} wrap="wrap">
+            {factsOf(n)
+              .slice(0, 3)
+              .map((fact) => (
+                <VStack key={fact.label} gap={0}>
+                  <Text type="supporting" color="secondary">
+                    {fact.label}
+                  </Text>
+                  <Text weight="medium" hasTabularNumbers>
+                    {fact.value}
+                  </Text>
+                </VStack>
+              ))}
+          </HStack>
+          <Text type="supporting" color="secondary">
+            {solutions ? `${solutions} potential ${solutions === 1 ? "solution" : "solutions"}` : "No solutions yet"}
+            {" · "}
+            {localTime(n.seen_at)}
+          </Text>
+        </VStack>
+      </Card>
+    </a>
+  );
 }
 
 /** One issue: a headline, the key figures, the files behind it and what to do about it. */
