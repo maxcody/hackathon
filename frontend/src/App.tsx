@@ -3,6 +3,7 @@ import {
   ArrowPathIcon,
   BellIcon,
   ChartBarSquareIcon,
+  FolderIcon,
   InboxIcon,
   Squares2X2Icon,
   CpuChipIcon,
@@ -38,6 +39,7 @@ import { AgentsPage } from "./AgentsPage";
 import { ReadinessPanel } from "./ReadinessPanel";
 import { InboxPage } from "./InboxPage";
 import { DataPage } from "./DataPage";
+import { FilesPage } from "./FilesPage";
 import { clockTime, localTime, timeToLaunch } from "./time";
 
 const severityOrder: Severity[] = ["critical", "warning", "info"];
@@ -98,6 +100,7 @@ export function App() {
   let page;
   if (location === "#agents") page = <AgentsPage />;
   else if (location === "#inbox") page = <InboxPage />;
+  else if (location === "#files") page = <FilesPage />;
   else if (location === "#data") page = <DataPage notifications={notifications ?? []} />;
   else if (notifications === null) {
     page = loadError ? (
@@ -169,6 +172,7 @@ export function App() {
 function pageTitle(location: string): string {
   if (location === "#inbox") return "Inbox";
   if (location === "#data") return "Data";
+  if (location === "#files") return "Files";
   if (location === "#agents") return "Agents";
   if (location === "#issues") return "Issues";
   return "Overview";
@@ -213,6 +217,12 @@ function AppSideNav({ location }: { location: string }) {
           icon={ChartBarSquareIcon}
           href="#data"
           isSelected={current === "#data"}
+        />
+        <SideNavItem
+          label="Files"
+          icon={FolderIcon}
+          href="#files"
+          isSelected={current === "#files"}
         />
         <SideNavItem
           label="Agents"

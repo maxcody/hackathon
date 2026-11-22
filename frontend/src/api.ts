@@ -1,6 +1,7 @@
 import type {
   AgentSummary,
   Dataset,
+  DataFile,
   DatasetInfo,
   Lookups,
   Mailbox,
@@ -66,6 +67,11 @@ export async function reanalyzeEmail(messageId: string): Promise<void> {
 /** The datasets the Data tab offers. */
 export function listDatasets(): Promise<DatasetInfo[]> {
   return request("/dataset");
+}
+
+/** Every file in the data folder. */
+export function listFiles(): Promise<DataFile[]> {
+  return request("/dataset/files");
 }
 
 /** Part and supplier names, documents behind ids, and the open orders. */

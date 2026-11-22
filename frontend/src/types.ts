@@ -195,6 +195,15 @@ export interface MailAnalysis {
 }
 
 /** A dataset in the Data tab's list (`/dataset`). */
+/** One file in the data folder; `path` is what /dataset/file opens. */
+export interface DataFile {
+  path: string;
+  name: string;
+  folder: string;
+  size: number;
+  modified: string;
+}
+
 export interface DatasetInfo {
   key: string;
   title: string;

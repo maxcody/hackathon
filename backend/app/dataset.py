@@ -10,7 +10,7 @@ next to them and the documents (scans, order confirmations) behind them.
 import csv
 import re
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -501,3 +501,31 @@ def resolve(rel: str) -> Path:
     if not path.is_relative_to(root) or not path.is_file():
         raise FileNotFoundError(rel)
     return path
+
+
+class FileInfo(BaseModel):
+    """One file in the data folder."""
+
+    path: str  # relative to the data folder; what /dataset/file takes
+    name: str
+    folder: str
+    size: int
+    modified: str
+
+
+def files() -> list[FileInfo]:
+    """Every file in the data folder, grouped by folder, newest first within it."""
+    root = data_root().resolve()
+    found = [p for p in root.rglob("*") if p.is_file() and not p.name.startswith(".")]
+    found.sort(key=lambda p: -p.stat().st_mtime)
+    found.sort(key=lambda p: p.parent)
+    return [
+        FileInfo(
+            path=p.relative_to(root).as_posix(),
+            name=p.name,
+            folder=p.parent.relative_to(root).as_posix(),
+            size=p.stat().st_size,
+            modified=datetime.fromtimestamp(p.stat().st_mtime, UTC).isoformat(),
+        )
+        for p in found
+    ]
