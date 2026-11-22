@@ -1,5 +1,32 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowPathIcon,
+  BellIcon,
+  ChartBarSquareIcon,
+  InboxIcon,
+  Squares2X2Icon,
+  CpuChipIcon,
+} from "@heroicons/react/24/outline";
+import { AppShell } from "@astryxdesign/core/AppShell";
+import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
+import { TopNav } from "@astryxdesign/core/TopNav";
+import { Layout, LayoutContent, HStack, VStack, StackItem } from "@astryxdesign/core/Layout";
+import { Heading, Text } from "@astryxdesign/core/Text";
+import { Button } from "@astryxdesign/core/Button";
+import { Badge } from "@astryxdesign/core/Badge";
+import { Banner } from "@astryxdesign/core/Banner";
+import { Card } from "@astryxdesign/core/Card";
+import { Section } from "@astryxdesign/core/Section";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Icon } from "@astryxdesign/core/Icon";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
+import { Popover } from "@astryxdesign/core/Popover";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { Divider } from "@astryxdesign/core/Divider";
 import { getSkillRun, importMaster, importSheets, listNotifications, sendSolutionEmail, startSkillRun, syncPortal, updateNotificationData } from "./api";
 import type { Notification, Severity, SkillRun, Solution } from "./types";
 import { ComposeWindow } from "./EmailDraft";
@@ -8,27 +35,10 @@ import { AgentsPage } from "./AgentsPage";
 import { ReadinessPanel } from "./ReadinessPanel";
 import { InboxPage } from "./InboxPage";
 import { DataPage } from "./DataPage";
+import { localTime, timeToLaunch } from "./time";
 
 const severityOrder: Severity[] = ["critical", "warning", "info"];
-/** CSS severity classes from the original design, keyed by notification severity. */
-const severityClass: Record<string, string> = { critical: "critical", warning: "high", info: "low" };
 const REFRESH_MS = 30 * 1000;
-
-/** Format a timestamp for the viewer's local timezone. */
-function localTime(value: string | null | undefined): string {
-  if (!value) return "Not available";
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? value : date.toLocaleString();
-}
-
-const LAUNCH = new Date("2026-11-22T20:00:00+01:00");
-
-/** Time left until launch, e.g. "16 h 40 min left". */
-function timeToLaunch(): string {
-  const minutes = Math.round((LAUNCH.getTime() - Date.now()) / 60000);
-  if (minutes <= 0) return "launched";
-  return `${Math.floor(minutes / 60)} h ${minutes % 60} min left`;
-}
 
 /** Normalize a notification's free-text severity to a known level. */
 function severityOf(notification: Notification): Severity {
@@ -41,19 +51,19 @@ function isOpen(notification: Notification): boolean {
   return (notification.data.status ?? "open") !== "resolved";
 }
 
-/** Render a compact visual symbol with an accessible label. */
-function Icon({ name }: { name: string }) {
-  const icons: Record<string, string> = {
-    grid: "▦", file: "▤", clock: "◷", refresh: "↻", check: "✓",
-    search: "⌕", spark: "✳", alert: "!", mail: "✉",
-  };
-  return <span aria-hidden="true" className="icon">{icons[name] ?? "·"}</span>;
+function severityVariant(severity: Severity): "error" | "warning" | "info" {
+  if (severity === "critical") return "error";
+  if (severity === "warning") return "warning";
+  return "info";
 }
 
-/** Build the launch control dashboard.
- *
- * @returns The interactive launch control interface.
- */
+function severityDot(severity: Severity): "error" | "warning" | "accent" {
+  if (severity === "critical") return "error";
+  if (severity === "warning") return "warning";
+  return "accent";
+}
+
+/** Build the launch control dashboard with Astryx AppShell chrome. */
 export function App() {
   const [location, setLocation] = useState(window.location.hash || "#overview");
   const [notifications, setNotifications] = useState<Notification[] | null>(null);
@@ -66,77 +76,144 @@ export function App() {
       setLoadError(reason instanceof Error ? reason.message : "Could not load issues.");
     }
   }, []);
+
   useEffect(() => {
     const onNavigate = () => setLocation(window.location.hash || "#overview");
     window.addEventListener("hashchange", onNavigate);
     return () => window.removeEventListener("hashchange", onNavigate);
   }, []);
+
   useEffect(() => {
     void refresh();
-    // Agents post findings in the background, so keep every page current.
     const timer = window.setInterval(() => void refresh(), REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [refresh]);
 
   const issues = location === "#issues" || location.startsWith("#n-");
+  const navLocation = issues ? "#issues" : location;
+
   let page;
   if (location === "#agents") page = <AgentsPage />;
   else if (location === "#inbox") page = <InboxPage />;
   else if (location === "#data") page = <DataPage notifications={notifications ?? []} />;
   else if (notifications === null) {
-    page = loadError
-      ? <div className="load-error"><h1>The backend is not reachable.</h1><p>{loadError}</p><button className="button button-primary" onClick={() => void refresh()}>Try again</button></div>
-      : <div className="loading-screen"><p>Loading…</p></div>;
-  } else if (issues) page = <IssuesPage notifications={notifications} refresh={refresh} focus={location.startsWith("#n-") ? location.slice(1) : null} />;
-  else page = <Dashboard notifications={notifications} />;
+    page = loadError ? (
+      <Layout
+        height="fill"
+        content={
+          <LayoutContent>
+            <VStack gap={4} hAlign="center" vAlign="center" padding={8}>
+              <Heading level={1}>The backend is not reachable.</Heading>
+              <Text color="secondary">{loadError}</Text>
+              <Button label="Try again" variant="primary" onClick={() => void refresh()} />
+            </VStack>
+          </LayoutContent>
+        }
+      />
+    ) : (
+      <Layout
+        height="fill"
+        content={
+          <LayoutContent>
+            <VStack gap={2} hAlign="center" vAlign="center" padding={8}>
+              <Text color="secondary">Loading…</Text>
+            </VStack>
+          </LayoutContent>
+        }
+      />
+    );
+  } else if (issues) {
+    page = (
+      <IssuesPage
+        notifications={notifications}
+        refresh={refresh}
+        focus={location.startsWith("#n-") ? location.slice(1) : null}
+      />
+    );
+  } else {
+    page = <Dashboard notifications={notifications} />;
+  }
+
   return (
-    <div className="app-shell">
-      <Sidebar location={issues ? "#issues" : location} />
+    <AppShell
+      height="fill"
+      variant="elevated"
+      sideNav={<AppSideNav location={navLocation} />}
+      topNav={
+        <TopNav
+          heading={<Text weight="semibold">{pageTitle(navLocation)}</Text>}
+          endContent={
+            <HStack gap={2} vAlign="center">
+              <NotificationBell notifications={notifications ?? []} />
+              <Badge label="S" variant="neutral" />
+            </HStack>
+          }
+        />
+      }
+    >
       {page}
-    </div>
+    </AppShell>
   );
 }
 
-/** Line icons for the sidebar (16px, current color). */
-const NAV_ICONS: Record<string, ReactNode> = {
-  overview: <path d="M3 3h7v7H3zM14 3h7v4h-7zM14 11h7v10h-7zM3 14h7v7H3z" />,
-  inbox: <><path d="M3 13l3-8h12l3 8v6H3z" /><path d="M3 13h5l1.5 2.5h5L16 13h5" /></>,
-  data: <><ellipse cx="12" cy="5.5" rx="8" ry="2.5" /><path d="M4 5.5v13c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-13M4 12c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5" /></>,
-  agents: <><rect x="4" y="7" width="16" height="12" rx="3" /><path d="M12 3v4M9 12.5v.01M15 12.5v.01M9.5 16h5" /></>,
-};
+function pageTitle(location: string): string {
+  if (location === "#inbox") return "Inbox";
+  if (location === "#data") return "Data";
+  if (location === "#agents") return "Agents";
+  if (location === "#issues") return "Issues";
+  return "Overview";
+}
 
-/** Workspace navigation with the launch countdown (issues are reached via the bell). */
-function Sidebar({ location }: { location: string }) {
-  const links: [string, string, string][] = [
-    ["#overview", "overview", "Overview"],
-    ["#inbox", "inbox", "Inbox"],
-    ["#data", "data", "Data"],
-    ["#agents", "agents", "Agents"],
-  ];
+/** Workspace navigation with the launch countdown. */
+function AppSideNav({ location }: { location: string }) {
   const current = location === "#issues" ? "#overview" : location;
   return (
-    <aside className="sidebar side">
-      <a className="side-brand" href="#overview">Linewatch</a>
-      <p className="side-project">Soony · Grand Heist 6</p>
-      <nav className="side-nav" aria-label="Main navigation">
-        {links.map(([href, icon, label]) => (
-          <a key={href} className={`side-link${current === href ? " active" : ""}`} href={href} aria-current={current === href ? "page" : undefined}>
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{NAV_ICONS[icon]}</svg>
-            <span>{label}</span>
-          </a>
-        ))}
-      </nav>
-      <div className="side-foot">
-        <span>Launch Sun 22 Nov, 20:00</span>
-        <strong>{timeToLaunch()}</strong>
-      </div>
-    </aside>
+    <SideNav
+      collapsible
+      header={
+        <SideNavHeading
+          heading="Linewatch"
+          subheading="Soony · Grand Heist 6"
+          headingHref="#overview"
+        />
+      }
+      footer={
+        <VStack gap={1} padding={3}>
+          <Text type="supporting" color="secondary">
+            Launch Sun 22 Nov, 20:00
+          </Text>
+          <Text weight="semibold">{timeToLaunch()}</Text>
+        </VStack>
+      }
+    >
+      <SideNavSection title="Workspace" isHeaderHidden>
+        <SideNavItem
+          label="Overview"
+          icon={Squares2X2Icon}
+          href="#overview"
+          isSelected={current === "#overview"}
+        />
+        <SideNavItem
+          label="Inbox"
+          icon={InboxIcon}
+          href="#inbox"
+          isSelected={current === "#inbox"}
+        />
+        <SideNavItem
+          label="Data"
+          icon={ChartBarSquareIcon}
+          href="#data"
+          isSelected={current === "#data"}
+        />
+        <SideNavItem
+          label="Agents"
+          icon={CpuChipIcon}
+          href="#agents"
+          isSelected={current === "#agents"}
+        />
+      </SideNavSection>
+    </SideNav>
   );
-}
-
-/** Top bar of the overview and issues pages, with the notification bell. */
-function TopBar({ title, notifications }: { title: string; notifications: Notification[] }) {
-  return <header className="topbar"><div className="ov-crumb">{title}</div><div className="topbar-right"><NotificationBell notifications={notifications} /><span className="top-divider" /><span className="top-avatar">S</span></div></header>;
 }
 
 /** Launch overview: countdown, data sync and readiness; issues live on their own page. */
@@ -157,7 +234,9 @@ function Dashboard({ notifications }: { notifications: Notification[] }) {
       const sheets = await importSheets();
       const sheetRows = Object.values(sheets.rows).reduce((sum, count) => sum + count, 0);
       const failed = sync.failed.length ? ` ${sync.failed.length} files failed to download.` : "";
-      setNotice(`Portal checked: ${sync.added.length} new, ${sync.changed.length} changed, ${sync.unchanged} unchanged.${failed} Loaded ${master.products} products, ${master.components} components and ${sheetRows} sheet rows.`);
+      setNotice(
+        `Portal checked: ${sync.added.length} new, ${sync.changed.length} changed, ${sync.unchanged} unchanged.${failed} Loaded ${master.products} products, ${master.components} components and ${sheetRows} sheet rows.`,
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Portal sync failed.");
     } finally {
@@ -166,34 +245,84 @@ function Dashboard({ notifications }: { notifications: Notification[] }) {
   }
 
   return (
-    <main id="overview" className="main-content">
-      <TopBar title="Overview" notifications={notifications} />
-      <div className="content-wrap">
-        <section className="ov-head" aria-label="Launch">
-          <div>
-            <h1>Grand Heist 6 launch</h1>
-            <p>Sun 22 Nov, 20:00 · DC Hamburg · <strong>{timeToLaunch()}</strong></p>
-          </div>
-          <button type="button" className="ov-sync" onClick={handleSync} disabled={busy} title="Download new portal files and reload the database">{busy ? "Syncing…" : "Sync portal data"}</button>
-        </section>
+    <Layout
+      height="fill"
+      contentWidth={1200}
+      content={
+        <LayoutContent role="main" id="overview">
+          <VStack gap={6} padding={6}>
+            <HStack gap={4} vAlign="end" wrap="wrap">
+              <StackItem size="fill">
+                <VStack gap={1}>
+                  <Heading level={1}>Grand Heist 6 launch</Heading>
+                  <Text color="secondary">
+                    Sun 22 Nov, 20:00 · DC Hamburg · {timeToLaunch()}
+                  </Text>
+                </VStack>
+              </StackItem>
+              <Button
+                label={busy ? "Syncing…" : "Sync portal data"}
+                variant="secondary"
+                icon={<Icon icon={ArrowPathIcon} size="sm" />}
+                isLoading={busy}
+                isDisabled={busy}
+                onClick={() => void handleSync()}
+                tooltip="Download new portal files and reload the database"
+              />
+            </HStack>
 
-        {error && <div className="message message-error" role="alert"><Icon name="alert" /><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss">×</button></div>}
-        {notice && <div className="message message-success" role="status"><Icon name="check" /><span>{notice}</span><button onClick={() => setNotice(null)} aria-label="Dismiss">×</button></div>}
+            {error && (
+              <Banner
+                status="error"
+                title={error}
+                isDismissable
+                onDismiss={() => setError(null)}
+              />
+            )}
+            {notice && (
+              <Banner
+                status="success"
+                title={notice}
+                isDismissable
+                onDismiss={() => setNotice(null)}
+              />
+            )}
 
-        <a className={`ov-issues${critical ? " ov-issues-critical" : ""}`} href="#issues">
-          <strong>{open.length} open issues</strong>
-          <span>{critical ? `${critical} critical · ` : ""}what the agents found, with proposed solutions</span>
-          <em>View issues →</em>
-        </a>
+            <Card padding={4} elevation="low">
+              <HStack gap={4} vAlign="center" wrap="wrap">
+                <StackItem size="fill">
+                  <VStack gap={1}>
+                    <HStack gap={2} vAlign="center">
+                      <Text weight="semibold">{open.length} open issues</Text>
+                      {critical > 0 && <Badge label={`${critical} critical`} variant="error" />}
+                    </HStack>
+                    <Text type="supporting" color="secondary">
+                      What the agents found, with proposed solutions
+                    </Text>
+                  </VStack>
+                </StackItem>
+                <Button label="View issues" variant="primary" href="#issues" />
+              </HStack>
+            </Card>
 
-        <ReadinessPanel notifications={notifications} />
-      </div>
-    </main>
+            <ReadinessPanel notifications={notifications} />
+          </VStack>
+        </LayoutContent>
+      }
+    />
   );
 }
 
 /** Issues page: everything the agents found, with solutions, and the risk check. */
-function IssuesPage({ notifications, refresh, focus }: { notifications: Notification[]; refresh: () => Promise<void>; focus: string | null }) {
+function IssuesPage({
+  notifications,
+  refresh,
+  focus,
+}: {
+  notifications: Notification[];
+  refresh: () => Promise<void>;
+  focus: string | null;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | Severity>("all");
   const [showResolved, setShowResolved] = useState(false);
@@ -208,8 +337,19 @@ function IssuesPage({ notifications, refresh, focus }: { notifications: Notifica
     return [...notifications]
       .filter((n) => showResolved || isOpen(n) || `n-${n.id}` === focus)
       .filter((n) => filter === "all" || severityOf(n) === filter)
-      .filter((n) => !normalized || [n.data.title, n.data.details, n.data.kind, n.attr, n.erp_val, n.customer_val, ...(n.data.refs ?? [])].join(" ").toLowerCase().includes(normalized))
-      .sort((a, b) => severityOrder.indexOf(severityOf(a)) - severityOrder.indexOf(severityOf(b)) || b.seen_at.localeCompare(a.seen_at));
+      .filter(
+        (n) =>
+          !normalized ||
+          [n.data.title, n.data.details, n.data.kind, n.attr, n.erp_val, n.customer_val, ...(n.data.refs ?? [])]
+            .join(" ")
+            .toLowerCase()
+            .includes(normalized),
+      )
+      .sort(
+        (a, b) =>
+          severityOrder.indexOf(severityOf(a)) - severityOrder.indexOf(severityOf(b)) ||
+          b.seen_at.localeCompare(a.seen_at),
+      );
   }, [notifications, filter, query, showResolved, focus]);
 
   const counts = useMemo(() => {
@@ -230,23 +370,93 @@ function IssuesPage({ notifications, refresh, focus }: { notifications: Notifica
   }
 
   return (
-    <main id="issues" className="main-content">
-      <TopBar title="Issues" notifications={notifications} />
-      <div className="content-wrap">
-        <section className="ov-head" aria-label="Issues">
-          <div>
-            <h1>Issues</h1>
-            <p>Where the ERP disagrees with paperwork, suppliers or the launch plan, with proposed solutions.</p>
-          </div>
-          <RiskCheck onFinished={refresh} />
-        </section>
-        {error && <div className="message message-error" role="alert"><Icon name="alert" /><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss">×</button></div>}
-        <section className="section-block priority-section" aria-label="Issue list">
-          <div className="priority-toolbar"><div className="filter-tabs" role="group" aria-label="Filter issues">{(["all", ...severityOrder] as const).map((item) => <button key={item} className={`filter-tab ${filter === item ? "filter-active" : ""}`} onClick={() => setFilter(item)}>{item === "all" ? "All" : item}<span>{item === "all" ? openTotal : counts[item]}</span></button>)}<button className={`filter-tab ${showResolved ? "filter-active" : ""}`} onClick={() => setShowResolved((value) => !value)}>Resolved</button></div><label className="search-field"><Icon name="search" /><input aria-label="Search issues" placeholder="Search a part, file or issue" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
-          <div className="nc-list">{visible.length ? visible.map((n) => <NotificationCard key={n.id} notification={n} onStatus={setStatus} onChanged={() => void refresh()} />) : <p className="list-empty">{notifications.length ? "Nothing matches this filter." : "No issues yet. Run the risk check to let an agent go through the data."}</p>}</div>
-        </section>
-      </div>
-    </main>
+    <Layout
+      height="fill"
+      contentWidth={1200}
+      content={
+        <LayoutContent role="main" id="issues">
+          <VStack gap={6} padding={6}>
+            <HStack gap={4} vAlign="end" wrap="wrap">
+              <StackItem size="fill">
+                <VStack gap={1}>
+                  <Heading level={1}>Issues</Heading>
+                  <Text color="secondary">
+                    Where the ERP disagrees with paperwork, suppliers or the launch plan, with proposed
+                    solutions.
+                  </Text>
+                </VStack>
+              </StackItem>
+              <RiskCheck onFinished={refresh} />
+            </HStack>
+
+            {error && (
+              <Banner
+                status="error"
+                title={error}
+                isDismissable
+                onDismiss={() => setError(null)}
+              />
+            )}
+
+            <Section padding={0}>
+              <VStack gap={4}>
+                <HStack gap={3} vAlign="center" wrap="wrap">
+                  <SegmentedControl
+                    label="Filter issues"
+                    value={filter}
+                    onChange={(value) => setFilter(value as "all" | Severity)}
+                  >
+                    <SegmentedControlItem value="all" label={`All (${openTotal})`} />
+                    <SegmentedControlItem value="critical" label={`Critical (${counts.critical})`} />
+                    <SegmentedControlItem value="warning" label={`Warning (${counts.warning})`} />
+                    <SegmentedControlItem value="info" label={`Info (${counts.info})`} />
+                  </SegmentedControl>
+                  <Button
+                    label="Resolved"
+                    variant={showResolved ? "primary" : "secondary"}
+                    onClick={() => setShowResolved((value) => !value)}
+                  />
+                  <StackItem size="fill">
+                    <TextInput
+                      label="Search issues"
+                      isLabelHidden
+                      type="search"
+                      placeholder="Search a part, file or issue"
+                      value={query}
+                      onChange={setQuery}
+                      startIcon="search"
+                      hasClear
+                    />
+                  </StackItem>
+                </HStack>
+
+                {visible.length ? (
+                  <VStack gap={3}>
+                    {visible.map((n) => (
+                      <NotificationCard
+                        key={n.id}
+                        notification={n}
+                        onStatus={setStatus}
+                        onChanged={() => void refresh()}
+                      />
+                    ))}
+                  </VStack>
+                ) : (
+                  <EmptyState
+                    title={notifications.length ? "Nothing matches this filter." : "No issues yet"}
+                    description={
+                      notifications.length
+                        ? undefined
+                        : "Run the risk check to let an agent go through the data."
+                    }
+                  />
+                )}
+              </VStack>
+            </Section>
+          </VStack>
+        </LayoutContent>
+      }
+    />
   );
 }
 
@@ -258,11 +468,14 @@ function RiskCheck({ onFinished }: { onFinished: () => Promise<void> }) {
 
   useEffect(() => {
     let previous: string | undefined;
-    const poll = () => getSkillRun("risk-check").then((value) => {
-      if (previous === "running" && value.status !== "running") void onFinished();
-      previous = value.status;
-      setRun(value);
-    }).catch(() => undefined);
+    const poll = () =>
+      getSkillRun("risk-check")
+        .then((value) => {
+          if (previous === "running" && value.status !== "running") void onFinished();
+          previous = value.status;
+          setRun(value);
+        })
+        .catch(() => undefined);
     void poll();
     const timer = window.setInterval(poll, 10 * 1000);
     return () => window.clearInterval(timer);
@@ -270,136 +483,269 @@ function RiskCheck({ onFinished }: { onFinished: () => Promise<void> }) {
 
   async function start() {
     setError("");
-    try { setRun(await startSkillRun("risk-check")); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not start the risk check."); }
+    try {
+      setRun(await startSkillRun("risk-check"));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not start the risk check.");
+    }
   }
 
-  const when = (value: string | null | undefined) => (value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
+  const when = (value: string | null | undefined) =>
+    value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
   const status = running
     ? `Running since ${when(run?.started_at)} · takes a few minutes`
-    : run?.status === "done" ? `Last run ${when(run.finished_at)}`
-    : run?.status === "failed" ? `Last run failed: ${run.error ?? ""}`
-    : "Not run yet";
+    : run?.status === "done"
+      ? `Last run ${when(run.finished_at)}`
+      : run?.status === "failed"
+        ? `Last run failed: ${run.error ?? ""}`
+        : "Not run yet";
+
   return (
-    <div className="risk-run">
-      <button type="button" className="ov-sync" onClick={() => void start()} disabled={running}>{running ? "Checking…" : "Run risk check"}</button>
-      <small className={run?.status === "failed" || error ? "risk-run-bad" : ""} title={run?.summary || undefined}>{error || status}</small>
-    </div>
+    <VStack gap={1} hAlign="end">
+      <Button
+        label={running ? "Checking…" : "Run risk check"}
+        variant="secondary"
+        isLoading={running}
+        isDisabled={running}
+        onClick={() => void start()}
+      />
+      <Text type="supporting" color={run?.status === "failed" || error ? "accent" : "secondary"}>
+        {error || status}
+      </Text>
+    </VStack>
   );
 }
 
 /** Bell in the top bar: open-notification count and a dropdown of the latest ones. */
 function NotificationBell({ notifications }: { notifications: Notification[] }) {
   const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
   const openItems = notifications.filter(isOpen).sort((a, b) => b.seen_at.localeCompare(a.seen_at));
   const urgent = openItems.some((n) => severityOf(n) === "critical");
 
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (event: MouseEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onClick); document.removeEventListener("keydown", onKey); };
-  }, [open]);
-
   return (
-    <div className="bell" ref={root}>
-      <button className="bell-button" onClick={() => setOpen((value) => !value)} aria-label={`Notifications, ${openItems.length} open`} aria-expanded={open} aria-haspopup="true">
-        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /><path d="M10 20.5a2 2 0 0 0 4 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
-        {openItems.length > 0 && <span className={`bell-count${urgent ? " bell-urgent" : ""}`}>{openItems.length > 99 ? "99+" : openItems.length}</span>}
-      </button>
-      {open && (
-        <div className="bell-panel" role="dialog" aria-label="Latest notifications">
-          <div className="bell-head"><strong>Notifications</strong><span>{openItems.length} open</span></div>
-          {openItems.length ? (
-            <ul className="bell-list">
-              {openItems.slice(0, 6).map((n) => (
-                <li key={n.id}>
-                  <a href={`#n-${n.id}`} onClick={() => setOpen(false)}>
-                    <i className={`bell-dot severity-${severityClass[severityOf(n)]}`} />
-                    <span><strong>{n.data.title || `${n.attr} mismatch`}</strong><small>{severityOf(n)} · {localTime(n.seen_at)}</small></span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : <p className="bell-empty">Nothing open right now.</p>}
-          <a className="bell-all" href="#issues" onClick={() => setOpen(false)}>View all issues →</a>
-        </div>
+    <HStack gap={1} vAlign="center">
+      <Popover
+        isOpen={open}
+        onOpenChange={setOpen}
+        placement="below"
+        alignment="end"
+        width={340}
+        padding={0}
+        label="Latest notifications"
+        content={
+          <VStack gap={0}>
+            <HStack gap={2} padding={3} hAlign="between" vAlign="center">
+              <Text weight="semibold">Notifications</Text>
+              <Text type="supporting" color="secondary">
+                {openItems.length} open
+              </Text>
+            </HStack>
+            <Divider />
+            {openItems.length ? (
+              <List density="compact" edge="flush">
+                {openItems.slice(0, 6).map((n) => (
+                  <ListItem
+                    key={n.id}
+                    label={n.data.title || `${n.attr} mismatch`}
+                    description={`${severityOf(n)} · ${localTime(n.seen_at)}`}
+                    startContent={<StatusDot variant={severityDot(severityOf(n))} label={severityOf(n)} />}
+                    href={`#n-${n.id}`}
+                    onClick={() => setOpen(false)}
+                  />
+                ))}
+              </List>
+            ) : (
+              <VStack padding={4}>
+                <Text color="secondary">Nothing open right now.</Text>
+              </VStack>
+            )}
+            <Divider />
+            <VStack padding={2}>
+              <Button
+                label="View all issues"
+                variant="ghost"
+                href="#issues"
+                onClick={() => setOpen(false)}
+                width="100%"
+              />
+            </VStack>
+          </VStack>
+        }
+      >
+        <IconButton
+          label={`Notifications, ${openItems.length} open`}
+          icon={<Icon icon={BellIcon} size="sm" />}
+        />
+      </Popover>
+      {openItems.length > 0 && (
+        <Badge
+          label={openItems.length > 99 ? "99+" : String(openItems.length)}
+          variant={urgent ? "error" : "neutral"}
+        />
       )}
-    </div>
+    </HStack>
   );
 }
 
 /** Display one notification: what differs, why it matters, how to solve it. */
-function NotificationCard({ notification: n, onStatus, onChanged }: { notification: Notification; onStatus: (n: Notification, status: string) => void; onChanged: () => void }) {
+function NotificationCard({
+  notification: n,
+  onStatus,
+  onChanged,
+}: {
+  notification: Notification;
+  onStatus: (n: Notification, status: string) => void;
+  onChanged: () => void;
+}) {
   const severity = severityOf(n);
   const status = n.data.status ?? "open";
   const refs = n.data.refs ?? [];
   const kind = (n.data.kind ?? "").replace(/_/g, " ");
+
   return (
-    <article id={`n-${n.id}`} className={`nc nc-${severity}${status === "resolved" ? " nc-resolved" : ""}`}>
-      <header className="nc-head">
-        <div className="nc-title">
-          <span className="nc-meta"><i className="nc-dot" />{severity}{kind && <> · {kind}</>}</span>
-          <h3>{n.data.title || `${n.attr} mismatch`}</h3>
-        </div>
-        <div className="nc-actions">
-          <span className={`nc-status nc-status-${status}`}>{status.replace("_", " ")}</span>
-          <button type="button" className="nc-resolve" onClick={() => onStatus(n, status === "resolved" ? "open" : "resolved")}>{status === "resolved" ? "Reopen" : "Resolve"}</button>
-        </div>
-      </header>
-      {(n.erp_val || n.customer_val) && (
-        <div className="nc-compare">
-          <div><span>ERP · {n.attr.replace(/_/g, " ")}</span><strong>{n.erp_val ?? "–"}</strong></div>
-          <div><span>Actual</span><strong>{n.customer_val ?? "–"}</strong></div>
-        </div>
-      )}
-      {n.data.details && <p className="nc-details">{n.data.details}</p>}
-      {(n.data.solutions ?? []).length > 0 && <SolutionList notification={n} onChanged={onChanged} />}
-      <footer className="nc-foot">
-        {refs.length > 0 && <details className="nc-sources"><summary>{refs.length} {refs.length === 1 ? "source" : "sources"}</summary><ul>{refs.map((ref) => <li key={ref}>{ref}</li>)}</ul></details>}
-        <span>Last seen {localTime(n.seen_at)}{n.data.status_note ? ` · ${n.data.status_note}` : ""}</span>
-      </footer>
-    </article>
+    <Card id={`n-${n.id}`} padding={4} elevation="low" variant={status === "resolved" ? "muted" : "default"}>
+      <VStack gap={3}>
+        <HStack gap={3} vAlign="start" wrap="wrap">
+          <StackItem size="fill">
+            <VStack gap={1}>
+              <HStack gap={2} vAlign="center">
+                <StatusDot variant={severityDot(severity)} label={severity} />
+                <Text type="supporting" color="secondary">
+                  {severity}
+                  {kind ? ` · ${kind}` : ""}
+                </Text>
+              </HStack>
+              <Heading level={3}>{n.data.title || `${n.attr} mismatch`}</Heading>
+            </VStack>
+          </StackItem>
+          <HStack gap={2} vAlign="center">
+            <Badge label={status.replace("_", " ")} variant={severityVariant(severity)} />
+            <Button
+              label={status === "resolved" ? "Reopen" : "Resolve"}
+              variant="secondary"
+              size="sm"
+              onClick={() => onStatus(n, status === "resolved" ? "open" : "resolved")}
+            />
+          </HStack>
+        </HStack>
+
+        {(n.erp_val || n.customer_val) && (
+          <HStack gap={4} wrap="wrap">
+            <VStack gap={0}>
+              <Text type="supporting" color="secondary">
+                ERP · {n.attr.replace(/_/g, " ")}
+              </Text>
+              <Text weight="semibold">{n.erp_val ?? "–"}</Text>
+            </VStack>
+            <VStack gap={0}>
+              <Text type="supporting" color="secondary">
+                Actual
+              </Text>
+              <Text weight="semibold">{n.customer_val ?? "–"}</Text>
+            </VStack>
+          </HStack>
+        )}
+
+        {n.data.details && <Text color="secondary">{n.data.details}</Text>}
+        {(n.data.solutions ?? []).length > 0 && <SolutionList notification={n} onChanged={onChanged} />}
+
+        <HStack gap={3} vAlign="center" wrap="wrap">
+          {refs.length > 0 && (
+            <Text type="supporting" color="secondary">
+              {refs.length} {refs.length === 1 ? "source" : "sources"}: {refs.join(", ")}
+            </Text>
+          )}
+          <Text type="supporting" color="secondary">
+            Last seen {localTime(n.seen_at)}
+            {n.data.status_note ? ` · ${n.data.status_note}` : ""}
+          </Text>
+        </HStack>
+      </VStack>
+    </Card>
   );
 }
-const SOLUTION_KIND: Record<Solution["kind"], string> = { email: "Email", claim: "Claim", internal: "Internal", decision: "Decision" };
+
+const SOLUTION_KIND: Record<Solution["kind"], string> = {
+  email: "Email",
+  claim: "Claim",
+  internal: "Internal",
+  decision: "Decision",
+};
 
 /** Proposed solutions of a notification; email solutions open a review popup. */
 function SolutionList({ notification, onChanged }: { notification: Notification; onChanged: () => void }) {
   const [open, setOpen] = useState<number | null>(null);
   const solutions = notification.data.solutions ?? [];
+
   return (
-    <div className="sols">
-      <h4>How to solve it</h4>
-      <ol>
+    <VStack gap={2}>
+      <Heading level={4}>How to solve it</Heading>
+      <List density="compact" listStyle="decimal" hasDividers>
         {solutions.map((solution, index) => (
-          <li key={index} className={`sol sol-${solution.kind}`}>
-            <span className="sol-kind">{SOLUTION_KIND[solution.kind] ?? solution.kind}</span>
-            <div className="sol-main">
-              <strong>{solution.title}</strong>
-              <p>{solution.description}</p>
-              <small>{[solution.owner, solution.deadline && `by ${solution.deadline}`, solution.cost].filter(Boolean).join(" · ")}</small>
-              {solution.approval && <small className="sol-approval">Approval: {solution.approval}</small>}
-            </div>
-            {solution.email && (solution.status === "sent"
-              ? <button type="button" className="sol-sent" onClick={() => setOpen(index)}>✓ Sent</button>
-              : <button type="button" className="sol-action" onClick={() => setOpen(index)}>Review email</button>)}
-          </li>
+          <ListItem
+            key={index}
+            label={solution.title}
+            description={
+              <VStack gap={1}>
+                <Text type="supporting">{solution.description}</Text>
+                <Text type="supporting" color="secondary">
+                  {[solution.owner, solution.deadline && `by ${solution.deadline}`, solution.cost]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Text>
+                {solution.approval && (
+                  <Text type="supporting" color="secondary">
+                    Approval: {solution.approval}
+                  </Text>
+                )}
+              </VStack>
+            }
+            startContent={<Badge label={SOLUTION_KIND[solution.kind] ?? solution.kind} variant="neutral" />}
+            endContent={
+              solution.email ? (
+                <Button
+                  label={solution.status === "sent" ? "Sent" : "Review email"}
+                  variant={solution.status === "sent" ? "secondary" : "primary"}
+                  size="sm"
+                  onClick={() => setOpen(index)}
+                />
+              ) : undefined
+            }
+          />
         ))}
-      </ol>
-      {open !== null && solutions[open] && <SolutionEmailDialog notification={notification} index={open} solution={solutions[open]} onClose={() => setOpen(null)} onSent={() => { setOpen(null); onChanged(); }} />}
-    </div>
+      </List>
+      {open !== null && solutions[open] && (
+        <SolutionEmailDialog
+          notification={notification}
+          index={open}
+          solution={solutions[open]}
+          onClose={() => setOpen(null)}
+          onSent={() => {
+            setOpen(null);
+            onChanged();
+          }}
+        />
+      )}
+    </VStack>
   );
 }
 
 /** Popup to review, edit, approve and send a solution's email. */
-function SolutionEmailDialog({ notification, index, solution, onClose, onSent }: { notification: Notification; index: number; solution: Solution; onClose: () => void; onSent: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+function SolutionEmailDialog({
+  notification,
+  index,
+  solution,
+  onClose,
+  onSent,
+}: {
+  notification: Notification;
+  index: number;
+  solution: Solution;
+  onClose: () => void;
+  onSent: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => { dialog.current?.showModal(); }, []);
   const sent = solution.status === "sent" ? solution.sent_email : undefined;
   const email = sent ?? solution.email;
   if (!email) return null;
@@ -419,8 +765,24 @@ function SolutionEmailDialog({ notification, index, solution, onClose, onSent }:
   }
 
   return (
-    <dialog ref={dialog} className="solution-dialog" onClose={onClose} onCancel={(event) => { if (busy) event.preventDefault(); }}>
-      <ComposeWindow context={notification.data.title ?? ""} title={solution.title} draft={draft} translation={solution.email?.translation} approval={sent ? undefined : solution.approval} busy={busy} error={error} onClose={() => dialog.current?.close()} onSend={sent ? undefined : (edited, approvedBy) => void send(edited, approvedBy)} status={sent ? `Sent${solution.approved_by ? ` · approved by ${solution.approved_by}` : ""}` : undefined} />
-    </dialog>
+    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && !busy && onClose()} width={640} purpose="form" padding={0}>
+      <DialogHeader
+        title={solution.title}
+        subtitle={notification.data.title ?? ""}
+        onOpenChange={(isOpen) => !isOpen && !busy && onClose()}
+      />
+      <ComposeWindow
+        context={notification.data.title ?? ""}
+        title={solution.title}
+        draft={draft}
+        translation={solution.email?.translation}
+        approval={sent ? undefined : solution.approval}
+        busy={busy}
+        error={error}
+        onClose={onClose}
+        onSend={sent ? undefined : (edited, approvedBy) => void send(edited, approvedBy)}
+        status={sent ? `Sent${solution.approved_by ? ` · approved by ${solution.approved_by}` : ""}` : undefined}
+      />
+    </Dialog>
   );
 }

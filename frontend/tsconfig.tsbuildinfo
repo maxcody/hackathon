@@ -1,1 +1,1 @@
-{"root":["./src/agentspage.tsx","./src/app.tsx","./src/api.ts","./src/main.tsx","./src/types.ts"],"version":"5.8.3"}
+{"root":["./src/AgentsPage.tsx","./src/App.tsx","./src/DataPage.tsx","./src/EmailDraft.tsx","./src/InboxPage.tsx","./src/ReadinessPanel.tsx","./src/api.ts","./src/astryx-themes.ts","./src/main.tsx","./src/time.ts","./src/types.ts"],"version":"5.8.3"}

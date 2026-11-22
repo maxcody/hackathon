@@ -9,7 +9,7 @@ Dashboard and agents for the Lio Hack League case. The backend stores Soony's la
 
 ## Stack
 - FastAPI, async SQLAlchemy 2, asyncpg, Alembic
-- React, TypeScript, and Vite for the dashboard
+- React, TypeScript, Vite, and Meta’s Astryx design system (`@astryxdesign/core`) for the dashboard
 - Codex CLI for the agents; optional direct chat via the OpenAI SDK (`CHAT_ENGINE=openai`, `LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`)
 - ruff, black, isort, pytest, pre-commit
 

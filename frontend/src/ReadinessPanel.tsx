@@ -1,4 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Heading, Text } from "@astryxdesign/core/Text";
+import { VStack, HStack, StackItem } from "@astryxdesign/core/Layout";
+import { Card } from "@astryxdesign/core/Card";
+import { Section } from "@astryxdesign/core/Section";
+import { ProgressBar } from "@astryxdesign/core/ProgressBar";
+import { Badge } from "@astryxdesign/core/Badge";
+import { Banner } from "@astryxdesign/core/Banner";
+import { Link } from "@astryxdesign/core/Link";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Table, proportional } from "@astryxdesign/core/Table";
+import type { TableColumn } from "@astryxdesign/core/Table";
+import { Grid } from "@astryxdesign/core/Grid";
 import { getReadiness } from "./api";
 import type { Notification, PartCoverage, Readiness } from "./types";
 
@@ -28,8 +40,16 @@ function editionName(name: string): string {
 /** Open notifications about this part or one of its shipments. */
 function issuesFor(part: PartCoverage, notifications: Notification[]): Notification[] {
   const ids = [part.component_id, ...part.inbound.map((s) => s.shipment_id)].map((id) => id.toUpperCase());
-  return notifications.filter((n) => n.data.status !== "resolved" && ids.some((id) => (n.data.key ?? "").toUpperCase().includes(id)));
+  return notifications.filter(
+    (n) => n.data.status !== "resolved" && ids.some((id) => (n.data.key ?? "").toUpperCase().includes(id)),
+  );
 }
+
+type PartRow = PartCoverage & {
+  issues: Notification[];
+  tone: "muted" | "short" | "disputed" | "ok";
+  [key: string]: unknown;
+};
 
 /** Launch readiness: packed per edition and whether part stock covers the rest (ERP view). */
 export function ReadinessPanel({ notifications }: { notifications: Notification[] }) {
@@ -37,71 +57,196 @@ export function ReadinessPanel({ notifications }: { notifications: Notification[
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const load = () => getReadiness().then((value) => { setData(value); setError(""); }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load readiness."));
+    const load = () =>
+      getReadiness()
+        .then((value) => {
+          setData(value);
+          setError("");
+        })
+        .catch((reason: unknown) =>
+          setError(reason instanceof Error ? reason.message : "Could not load readiness."),
+        );
     load();
     const timer = window.setInterval(load, REFRESH_MS);
     return () => window.clearInterval(timer);
   }, []);
 
-  if (error) return <section className="ready"><p className="ready-error">Launch readiness unavailable: {error}</p></section>;
-  if (!data) return <section className="ready"><p className="ready-muted">Loading launch readiness…</p></section>;
+  const rows: PartRow[] = useMemo(() => {
+    if (!data) return [];
+    return data.parts.map((part) => {
+      const issues = issuesFor(part, notifications);
+      const disputed = part.balance >= 0 && issues.length > 0;
+      const tone = part.fitted_into ? "muted" : part.balance < 0 ? "short" : disputed ? "disputed" : "ok";
+      return { ...part, issues, tone };
+    });
+  }, [data, notifications]);
+
+  const columns: TableColumn<PartRow>[] = useMemo(
+    () => [
+      {
+        key: "part",
+        header: "Part",
+        width: proportional(2, { minWidth: 220 }),
+        renderCell: (part) => (
+          <VStack gap={0}>
+            <Text weight="semibold">{part.description}</Text>
+            <Text type="supporting" color="secondary">
+              {part.component_id}
+              {part.critical ? " · critical" : ""}
+              {part.suppliers.length ? ` · ${part.suppliers.join(", ")}` : ""}
+            </Text>
+          </VStack>
+        ),
+      },
+      {
+        key: "need",
+        header: "Still needed",
+        align: "end",
+        renderCell: (part) =>
+          part.fitted_into ? (
+            <Text color="secondary">Fitted into {part.fitted_into}</Text>
+          ) : (
+            <Text hasTabularNumbers>{number.format(part.need)}</Text>
+          ),
+      },
+      {
+        key: "available",
+        header: "Available",
+        align: "end",
+        renderCell: (part) =>
+          part.fitted_into ? (
+            <Text color="secondary">–</Text>
+          ) : (
+            <Text hasTabularNumbers>{number.format(part.available)}</Text>
+          ),
+      },
+      {
+        key: "balance",
+        header: "Balance",
+        align: "end",
+        renderCell: (part) =>
+          part.fitted_into ? (
+            <Text color="secondary">–</Text>
+          ) : (
+            <VStack gap={0} hAlign="end">
+              <Text hasTabularNumbers weight="semibold">
+                {signed(part.balance)}
+              </Text>
+              {part.tone === "disputed" && (
+                <Text type="supporting" color="secondary">
+                  per ERP · disputed
+                </Text>
+              )}
+            </VStack>
+          ),
+      },
+      {
+        key: "inbound",
+        header: "Arriving before launch",
+        width: proportional(2, { minWidth: 180 }),
+        renderCell: (part) =>
+          part.fitted_into ? (
+            <Text color="secondary">not stocked separately</Text>
+          ) : part.inbound.length ? (
+            <VStack gap={1}>
+              {part.inbound.map((s) => (
+                <Badge
+                  key={s.shipment_id}
+                  label={`${s.mode} · ${day(s.eta)} · ${s.status.replace(/_/g, " ")}`}
+                  variant={s.status.includes("delay") || s.status.includes("hold") ? "warning" : "neutral"}
+                />
+              ))}
+            </VStack>
+          ) : (
+            <Text color="secondary">none</Text>
+          ),
+      },
+      {
+        key: "issues",
+        header: "Open issues",
+        width: proportional(1.5, { minWidth: 160 }),
+        renderCell: (part) =>
+          part.issues.length ? (
+            <Link href={`#n-${part.issues[0].id}`}>
+              {part.issues[0].data.title}
+              {part.issues.length > 1 ? ` +${part.issues.length - 1} more` : ""}
+            </Link>
+          ) : (
+            <Text color="secondary">–</Text>
+          ),
+      },
+    ],
+    [],
+  );
+
+  if (error) {
+    return <Banner status="error" title={`Launch readiness unavailable: ${error}`} />;
+  }
+  if (!data) {
+    return <EmptyState title="Loading launch readiness…" isCompact />;
+  }
 
   return (
-    <section className="ready" aria-labelledby="ready-heading">
-      <div className="ready-head">
-        <h2 id="ready-heading">Launch readiness</h2>
-        <span>ERP figures · stock as of {day(data.snapshot_date)}</span>
-      </div>
+    <Section padding={0}>
+      <VStack gap={5}>
+        <HStack gap={3} vAlign="end" wrap="wrap">
+          <StackItem size="fill">
+            <Heading level={2} id="ready-heading">
+              Launch readiness
+            </Heading>
+          </StackItem>
+          <Text type="supporting" color="secondary">
+            ERP figures · stock as of {day(data.snapshot_date)}
+          </Text>
+        </HStack>
 
-      <div className="ready-editions">
-        {data.editions.map((edition) => {
-          const pct = edition.day_one ? Math.min(100, (edition.packed / edition.day_one) * 100) : 0;
-          return (
-            <article key={edition.product_id} className="ready-edition">
-              <span>{editionName(edition.name)}</span>
-              <strong>{number.format(edition.remaining)} <small>still to pack</small></strong>
-              <div className="ready-bar" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${pct}%` }} /></div>
-              <small>{number.format(edition.packed)} of {number.format(edition.day_one)} packed ({pct.toFixed(0)}%) · as of {day(edition.last_packed)}</small>
-              {edition.hours_left != null && edition.rate_per_hour && <small className="ready-pace">≈ {edition.hours_left} h of packing at {number.format(edition.rate_per_hour)}/h</small>}
-            </article>
-          );
-        })}
-      </div>
+        <Grid columns={{ minWidth: 240, max: 3 }} gap={3}>
+          {data.editions.map((edition) => {
+            const pct = edition.day_one ? Math.min(100, (edition.packed / edition.day_one) * 100) : 0;
+            return (
+              <Card key={edition.product_id} padding={4}>
+                <VStack gap={3}>
+                  <Text weight="semibold">{editionName(edition.name)}</Text>
+                  <HStack gap={1} vAlign="end">
+                    <Text size="xl" weight="bold" hasTabularNumbers>
+                      {number.format(edition.remaining)}
+                    </Text>
+                    <Text type="supporting" color="secondary">
+                      still to pack
+                    </Text>
+                  </HStack>
+                  <ProgressBar
+                    label={`${editionName(edition.name)} packed`}
+                    isLabelHidden
+                    value={pct}
+                    hasValueLabel
+                    formatValueLabel={() =>
+                      `${number.format(edition.packed)} of ${number.format(edition.day_one)} packed (${pct.toFixed(0)}%)`
+                    }
+                    variant={pct >= 90 ? "success" : pct >= 50 ? "accent" : "warning"}
+                  />
+                  <Text type="supporting" color="secondary">
+                    as of {day(edition.last_packed)}
+                  </Text>
+                  {edition.hours_left != null && edition.rate_per_hour ? (
+                    <Text type="supporting" color="secondary">
+                      ≈ {edition.hours_left} h of packing at {number.format(edition.rate_per_hour)}/h
+                    </Text>
+                  ) : null}
+                </VStack>
+              </Card>
+            );
+          })}
+        </Grid>
 
-      <div className="ready-table-wrap">
-        <table className="ready-parts">
-          <thead>
-            <tr><th>Part</th><th className="num">Still needed</th><th className="num">Available</th><th className="num">Balance</th><th>Arriving before launch</th><th>Open issues</th></tr>
-          </thead>
-          <tbody>
-            {data.parts.map((part) => {
-              const issues = issuesFor(part, notifications);
-              const disputed = part.balance >= 0 && issues.length > 0;
-              const tone = part.fitted_into ? "muted" : part.balance < 0 ? "short" : disputed ? "disputed" : "ok";
-              return (
-                <tr key={part.component_id} className={`ready-row ready-${tone}`}>
-                  <td>
-                    <strong>{part.description}</strong>
-                    <small>{part.component_id}{part.critical ? " · critical" : ""}{part.suppliers.length ? ` · ${part.suppliers.join(", ")}` : ""}</small>
-                  </td>
-                  {part.fitted_into ? (
-                    <td colSpan={4} className="ready-fitted">Fitted into {part.fitted_into} by the supplier, not stocked separately</td>
-                  ) : (
-                    <>
-                      <td className="num">{number.format(part.need)}</td>
-                      <td className="num" title={`Stock ${number.format(part.stock)} + received since snapshot ${number.format(part.received_since)}`}>{number.format(part.available)}</td>
-                      <td className="num ready-balance">{signed(part.balance)}{disputed && <small>per ERP · disputed</small>}</td>
-                      <td>{part.inbound.length ? part.inbound.map((s) => <span key={s.shipment_id} className={`ready-ship ready-ship-${s.status}`} title={`${s.shipment_id} · ${s.supplier_id}`}>{s.mode} · {day(s.eta)} · {s.status.replace(/_/g, " ")}</span>) : <span className="ready-muted">none</span>}</td>
-                    </>
-                  )}
-                  <td>{issues.length ? <a className="ready-issue" href={`#n-${issues[0].id}`} title={issues.map((n) => n.data.title).join("\n")}>{issues[0].data.title}{issues.length > 1 && <em> +{issues.length - 1} more</em>}</a> : <span className="ready-muted">–</span>}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <p className="ready-note">Balance = ERP stock + receipts since the snapshot − what is still to pack. Shipment quantities are not in the ERP, so arrivals are listed but not counted. The ERP can be wrong: check the linked issues.</p>
-    </section>
+        <Table data={rows} columns={columns} idKey="component_id" density="compact" hasHover dividers="rows" />
+
+        <Text type="supporting" color="secondary">
+          Balance = ERP stock + receipts since the snapshot − what is still to pack. Shipment quantities are
+          not in the ERP, so arrivals are listed but not counted. The ERP can be wrong: check the linked
+          issues.
+        </Text>
+      </VStack>
+    </Section>
   );
 }

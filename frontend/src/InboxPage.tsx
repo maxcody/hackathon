@@ -1,66 +1,174 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Layout, LayoutContent, LayoutPanel, HStack, VStack, StackItem } from "@astryxdesign/core/Layout";
+import { Heading, Text } from "@astryxdesign/core/Text";
+import { Button } from "@astryxdesign/core/Button";
+import { Banner } from "@astryxdesign/core/Banner";
+import { Badge } from "@astryxdesign/core/Badge";
+import { TabList, Tab } from "@astryxdesign/core/TabList";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Card } from "@astryxdesign/core/Card";
+import { Section } from "@astryxdesign/core/Section";
+import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList";
+import { Timestamp } from "@astryxdesign/core/Timestamp";
+import { Icon } from "@astryxdesign/core/Icon";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { getMailbox, reanalyzeEmail } from "./api";
 import type { MailMessage, Mailbox } from "./types";
-import "./inbox.css";
 
 const REFRESH_MS = 30 * 1000;
 const STATUS_LABEL: Record<string, string> = {
-  requests: "Accepted", deferred: "Delayed", delivered: "Delivered", opened: "Opened", clicks: "Clicked",
-  softBounces: "Soft bounce", hardBounces: "Bounced", blocked: "Blocked", invalid: "Invalid address", error: "Error", spam: "Marked as spam",
+  requests: "Accepted",
+  deferred: "Delayed",
+  delivered: "Delivered",
+  opened: "Opened",
+  clicks: "Clicked",
+  softBounces: "Soft bounce",
+  hardBounces: "Bounced",
+  blocked: "Blocked",
+  invalid: "Invalid address",
+  error: "Error",
+  spam: "Marked as spam",
 };
-const STATUS_TONE: Record<string, string> = { delivered: "ok", opened: "ok", clicks: "ok", requests: "wait", deferred: "wait" };
+const STATUS_VARIANT: Record<string, "success" | "warning" | "error" | "neutral"> = {
+  delivered: "success",
+  opened: "success",
+  clicks: "success",
+  requests: "warning",
+  deferred: "warning",
+};
 
 /** Short time label: today shows the time, older mail the date. */
 function when(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return value;
   const today = new Date().toDateString() === date.toDateString();
-  return today ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : date.toLocaleDateString([], { day: "numeric", month: "short" });
+  return today
+    ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : date.toLocaleDateString([], { day: "numeric", month: "short" });
 }
 
 /** Analysis state of a received mail in the list. */
 function AnalysisChip({ message }: { message: MailMessage }) {
   if (message.direction !== "in") return null;
   const status = message.analysis?.status;
-  const [tone, label] = status === "done" ? ["ok", "Analyzed"] : status === "failed" ? ["bad", "Analysis failed"] : ["wait", "Analyzing…"];
-  return <span className={`inbox-status inbox-status-${tone}`}>{label}</span>;
+  const [variant, label]: ["success" | "error" | "warning", string] =
+    status === "done"
+      ? ["success", "Analyzed"]
+      : status === "failed"
+        ? ["error", "Analysis failed"]
+        : ["warning", "Analyzing…"];
+  return <Badge label={label} variant={variant} />;
 }
 
-/** The agent's reading of a received mail: summary, commitments, risks, next step. */
+/** The agent's reading of a received mail. */
 function AnalysisPanel({ message, onRetry }: { message: MailMessage; onRetry: () => void }) {
   const [busy, setBusy] = useState(false);
   const analysis = message.analysis;
   async function retry() {
     setBusy(true);
-    try { await reanalyzeEmail(message.message_id); onRetry(); } finally { setBusy(false); }
+    try {
+      await reanalyzeEmail(message.message_id);
+      onRetry();
+    } finally {
+      setBusy(false);
+    }
   }
   if (!analysis || analysis.status === "running") {
-    return <section className="mail-ai mail-ai-wait"><strong>Agent analysis</strong><p>An agent is reading this email. The analysis appears here in a minute or two.</p></section>;
+    return (
+      <Card padding={4} variant="muted">
+        <VStack gap={2}>
+          <Text weight="semibold">Agent analysis</Text>
+          <Text color="secondary">
+            An agent is reading this email. The analysis appears here in a minute or two.
+          </Text>
+        </VStack>
+      </Card>
+    );
   }
   if (analysis.status === "failed") {
-    return <section className="mail-ai mail-ai-bad"><strong>Agent analysis failed</strong><p>{analysis.error}</p><button type="button" onClick={() => void retry()} disabled={busy}>{busy ? "Restarting…" : "Analyze again"}</button></section>;
+    return (
+      <Card padding={4} variant="red">
+        <VStack gap={2}>
+          <Text weight="semibold">Agent analysis failed</Text>
+          <Text>{analysis.error}</Text>
+          <Button
+            label={busy ? "Restarting…" : "Analyze again"}
+            variant="secondary"
+            isLoading={busy}
+            onClick={() => void retry()}
+          />
+        </VStack>
+      </Card>
+    );
   }
   return (
-    <section className="mail-ai">
-      <div className="mail-ai-head"><strong>Agent analysis</strong>{analysis.language && <span>{analysis.language.toUpperCase()}</span>}<button type="button" onClick={() => void retry()} disabled={busy}>{busy ? "Restarting…" : "Analyze again"}</button></div>
-      <p className="mail-ai-summary">{analysis.summary}</p>
-      {analysis.commitments.length > 0 && (
-        <ul className="mail-ai-commitments">
-          {analysis.commitments.map((c, index) => <li key={index}><strong>{c.what}</strong>{[c.quantity, c.date, c.price].filter(Boolean).length > 0 && <span>{[c.quantity, c.date, c.price].filter(Boolean).join(" · ")}</span>}</li>)}
-        </ul>
-      )}
-      {analysis.risks && <p className="mail-ai-risk"><strong>Risk:</strong> {analysis.risks}</p>}
-      {analysis.next_step && <p className="mail-ai-next"><strong>Next step:</strong> {analysis.next_step}</p>}
-      {analysis.notification_keys.length > 0 && <p className="mail-ai-links">Updated issues: {analysis.notification_keys.map((key) => <a key={key} href="#notifications">{key}</a>)}</p>}
-      {analysis.translation && <details className="mail-ai-translation"><summary>English translation</summary><p>{analysis.translation}</p></details>}
-    </section>
+    <Card padding={4}>
+      <VStack gap={3}>
+        <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
+          <HStack gap={2} vAlign="center">
+            <Text weight="semibold">Agent analysis</Text>
+            {analysis.language && <Badge label={analysis.language.toUpperCase()} variant="neutral" />}
+          </HStack>
+          <Button
+            label={busy ? "Restarting…" : "Analyze again"}
+            variant="ghost"
+            size="sm"
+            isLoading={busy}
+            onClick={() => void retry()}
+          />
+        </HStack>
+        <Text>{analysis.summary}</Text>
+        {analysis.commitments.length > 0 && (
+          <List density="compact">
+            {analysis.commitments.map((c, index) => (
+              <ListItem
+                key={index}
+                label={c.what}
+                description={[c.quantity, c.date, c.price].filter(Boolean).join(" · ") || undefined}
+              />
+            ))}
+          </List>
+        )}
+        {analysis.risks && (
+          <Text>
+            <Text weight="semibold">Risk: </Text>
+            {analysis.risks}
+          </Text>
+        )}
+        {analysis.next_step && (
+          <Text>
+            <Text weight="semibold">Next step: </Text>
+            {analysis.next_step}
+          </Text>
+        )}
+        {analysis.notification_keys.length > 0 && (
+          <Text type="supporting" color="secondary">
+            Updated issues: {analysis.notification_keys.join(", ")}
+          </Text>
+        )}
+        {analysis.translation && (
+          <Section padding={3} variant="muted">
+            <VStack gap={1}>
+              <Text weight="semibold">English translation</Text>
+              <Text color="secondary">{analysis.translation}</Text>
+            </VStack>
+          </Section>
+        )}
+      </VStack>
+    </Card>
   );
 }
 
 /** Delivery status chip for outgoing mail. */
 function StatusChip({ message }: { message: MailMessage }) {
   if (!message.status) return null;
-  return <span className={`inbox-status inbox-status-${STATUS_TONE[message.status] ?? "bad"}`}>{STATUS_LABEL[message.status] ?? message.status}</span>;
+  return (
+    <Badge
+      label={STATUS_LABEL[message.status] ?? message.status}
+      variant={STATUS_VARIANT[message.status] ?? "error"}
+    />
+  );
 }
 
 /** Inbox tab: sent mail with delivery status, and received mail once connected. */
@@ -69,8 +177,8 @@ export function InboxPage() {
   const [error, setError] = useState("");
   const [folder, setFolder] = useState<"all" | "in" | "out">("all");
   const [selected, setSelected] = useState<string | null>(null);
-
   const [loading, setLoading] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -89,64 +197,145 @@ export function InboxPage() {
     return () => window.clearInterval(timer);
   }, [load]);
 
-  const messages = useMemo(() => (box?.messages ?? []).filter((m) => folder === "all" || m.direction === folder), [box, folder]);
+  const messages = useMemo(
+    () => (box?.messages ?? []).filter((m) => folder === "all" || m.direction === folder),
+    [box, folder],
+  );
   const open = messages.find((m) => m.message_id === selected) ?? messages[0];
-  const original = open?.in_reply_to ? box?.messages.find((m) => m.message_id === open.in_reply_to) : undefined;
+  const original = open?.in_reply_to
+    ? box?.messages.find((m) => m.message_id === open.in_reply_to)
+    : undefined;
+
+  const counts = useMemo(() => {
+    const all = box?.messages ?? [];
+    return {
+      all: all.length,
+      in: all.filter((m) => m.direction === "in").length,
+      out: all.filter((m) => m.direction === "out").length,
+    };
+  }, [box]);
 
   return (
-    <main className="main-content inbox-page" id="inbox">
-      <header className="inbox-toolbar">
-        <h1>Inbox</h1>
-        <div className="inbox-folders" role="tablist">
-          {([["all", "All"], ["in", "Received"], ["out", "Sent"]] as const).map(([key, label]) => (
-            <button key={key} role="tab" aria-selected={folder === key} className={folder === key ? "active" : ""} onClick={() => setFolder(key)}>
-              {label} <span>{(box?.messages ?? []).filter((m) => key === "all" || m.direction === key).length}</span>
-            </button>
-          ))}
-        </div>
-        {box?.sender && <span className="inbox-account">{box.sender}</span>}
-        <button type="button" className="inbox-refresh" onClick={() => void load()} disabled={loading} aria-label="Refresh inbox"><span aria-hidden="true" className={loading ? "spinning" : ""}>↻</span> {loading ? "Refreshing…" : "Refresh"}</button>
-      </header>
-      {error && <p className="message message-error" role="alert">{error}</p>}
-      {box && !box.incoming_configured && folder !== "out" && <p className="inbox-notice">Received mail is not connected yet. Supplier replies go to {box.sender ?? "the sender address"}; connect it with the Gmail Apps Script (see README, "Inbox").</p>}
-      {box?.incoming_error && <p className="inbox-notice inbox-notice-error">{box.incoming_error}</p>}
-      <div className="inbox-panes">
-        <ul className="inbox-list" aria-label="Messages">
-          {!box && !error && <li className="inbox-empty">Loading…</li>}
-          {box && messages.length === 0 && <li className="inbox-empty">No messages.</li>}
-          {messages.map((m) => (
-            <li key={m.message_id}>
-              <button type="button" className={`inbox-item${open?.message_id === m.message_id ? " selected" : ""}`} onClick={() => setSelected(m.message_id)}>
-                <span className="inbox-item-top">
-                  <strong>{m.direction === "out" ? `To ${m.to.join(", ")}` : m.sender}</strong>
-                  <time>{when(m.at)}</time>
-                </span>
-                <span className="inbox-item-subject">{m.direction === "out" ? "↗ " : "↙ "}{m.subject || "(no subject)"}</span>
-                <span className="inbox-item-bottom"><span className="inbox-item-preview">{m.body.replace(/\s+/g, " ").slice(0, 90)}</span><StatusChip message={m} /><AnalysisChip message={m} /></span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <article className="inbox-reader" aria-live="polite">
+    <Layout
+      height="fill"
+      header={
+        <VStack gap={3} padding={4} paddingBlockEnd={0}>
+          <HStack gap={3} vAlign="center" wrap="wrap">
+            <Heading level={1}>Inbox</Heading>
+            <StackItem size="fill">
+              <TabList value={folder} onChange={(value) => setFolder(value as "all" | "in" | "out")} hasDivider>
+                <Tab value="all" label={`All (${counts.all})`} />
+                <Tab value="in" label={`Received (${counts.in})`} />
+                <Tab value="out" label={`Sent (${counts.out})`} />
+              </TabList>
+            </StackItem>
+            {box?.sender && (
+              <Text type="supporting" color="secondary">
+                {box.sender}
+              </Text>
+            )}
+            <Button
+              label={loading ? "Refreshing…" : "Refresh"}
+              variant="secondary"
+              icon={<Icon icon={ArrowPathIcon} size="sm" />}
+              isLoading={loading}
+              onClick={() => void load()}
+            />
+          </HStack>
+          {error && <Banner status="error" title={error} />}
+          {box && !box.incoming_configured && folder !== "out" && (
+            <Banner
+              status="info"
+              title={`Received mail is not connected yet. Supplier replies go to ${box.sender ?? "the sender address"}; connect it with the Gmail Apps Script (see README, "Inbox").`}
+            />
+          )}
+          {box?.incoming_error && <Banner status="error" title={box.incoming_error} />}
+        </VStack>
+      }
+      start={
+        <LayoutPanel width={360} hasDivider label="Messages" padding={0}>
+          {!box && !error ? (
+            <EmptyState title="Loading…" isCompact />
+          ) : messages.length === 0 ? (
+            <EmptyState title="No messages." isCompact />
+          ) : (
+            <List density="compact" edge="flush">
+              {messages.map((m) => (
+                <ListItem
+                  key={m.message_id}
+                  label={m.direction === "out" ? `To ${m.to.join(", ")}` : m.sender}
+                  description={`${m.direction === "out" ? "↗ " : "↙ "}${m.subject || "(no subject)"} · ${m.body.replace(/\s+/g, " ").slice(0, 90)}`}
+                  endContent={
+                    <VStack gap={1} hAlign="end">
+                      <Text type="supporting" color="secondary">
+                        {when(m.at)}
+                      </Text>
+                      <StatusChip message={m} />
+                      <AnalysisChip message={m} />
+                    </VStack>
+                  }
+                  isSelected={open?.message_id === m.message_id}
+                  onClick={() => setSelected(m.message_id)}
+                />
+              ))}
+            </List>
+          )}
+        </LayoutPanel>
+      }
+      content={
+        <LayoutContent role="main" id="inbox">
           {open ? (
-            <>
-              <header>
-                <h2>{open.subject || "(no subject)"}</h2>
-                <dl>
-                  <div><dt>From</dt><dd>{open.sender || "–"}</dd></div>
-                  <div><dt>To</dt><dd>{open.to.join(", ")}</dd></div>
-                  {open.cc.length > 0 && <div><dt>Cc</dt><dd>{open.cc.join(", ")}</dd></div>}
-                  <div><dt>Date</dt><dd>{new Date(open.at).toLocaleString()}</dd></div>
-                  {original && <div><dt>Reply to</dt><dd><button type="button" className="inbox-link" onClick={() => { setFolder("all"); setSelected(original.message_id); }}>{original.subject}</button></dd></div>}
-                  {open.direction === "out" && <div><dt>Status</dt><dd>{open.status ? <><StatusChip message={open} />{open.status_at && <small> {new Date(open.status_at).toLocaleString()}</small>}</> : box?.status_source ? "No delivery event yet" : "Unknown (Brevo not configured)"}</dd></div>}
-                </dl>
-              </header>
+            <VStack gap={4} padding={4}>
+              <Heading level={2}>{open.subject || "(no subject)"}</Heading>
+              <MetadataList columns="multi">
+                <MetadataListItem label="From">{open.sender || "–"}</MetadataListItem>
+                <MetadataListItem label="To">{open.to.join(", ")}</MetadataListItem>
+                {open.cc.length > 0 && (
+                  <MetadataListItem label="Cc">{open.cc.join(", ")}</MetadataListItem>
+                )}
+                <MetadataListItem label="Date">
+                  <Timestamp value={open.at} format="date_time" />
+                </MetadataListItem>
+                {original && (
+                  <MetadataListItem label="Reply to">
+                    <Button
+                      label={original.subject || "(no subject)"}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setFolder("all");
+                        setSelected(original.message_id);
+                      }}
+                    />
+                  </MetadataListItem>
+                )}
+                {open.direction === "out" && (
+                  <MetadataListItem label="Status">
+                    {open.status ? (
+                      <HStack gap={2} vAlign="center">
+                        <StatusChip message={open} />
+                        {open.status_at && <Timestamp value={open.status_at} format="date_time" />}
+                      </HStack>
+                    ) : (
+                      <Text color="secondary">
+                        {box?.status_source ? "No delivery event yet" : "Unknown (Brevo not configured)"}
+                      </Text>
+                    )}
+                  </MetadataListItem>
+                )}
+              </MetadataList>
               {open.direction === "in" && <AnalysisPanel message={open} onRetry={() => void load()} />}
-              <div className="inbox-body">{open.body}</div>
-            </>
-          ) : <p className="inbox-empty">Select a message.</p>}
-        </article>
-      </div>
-    </main>
+              <Section padding={4} variant="muted">
+                <Text display="block" as="p">
+                  {open.body}
+                </Text>
+              </Section>
+            </VStack>
+          ) : (
+            <EmptyState title="Select a message." />
+          )}
+        </LayoutContent>
+      }
+    />
   );
 }

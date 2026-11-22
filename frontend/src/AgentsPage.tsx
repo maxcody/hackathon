@@ -1,19 +1,35 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import {
+  ChatComposer,
+  ChatLayout,
+  ChatMessage,
+  ChatMessageBubble,
+  ChatMessageList,
+  ChatSystemMessage,
+} from "@astryxdesign/core/Chat";
+import { Markdown } from "@astryxdesign/core/Markdown";
+import { Avatar } from "@astryxdesign/core/Avatar";
+import { Layout, LayoutContent, HStack, VStack, StackItem } from "@astryxdesign/core/Layout";
+import { Heading, Text } from "@astryxdesign/core/Text";
+import { Button } from "@astryxdesign/core/Button";
+import { Banner } from "@astryxdesign/core/Banner";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import { TextArea } from "@astryxdesign/core/TextArea";
+import { Selector } from "@astryxdesign/core/Selector";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { createWorkspaceAgent, getWorkspaceAgent, listWorkspaceAgents, sendAgentMessage } from "./api";
 import type { AgentSummary, WorkspaceAgent } from "./types";
 import { EmailDraftCard, parseSendCommand, sendCommand, splitDrafts } from "./EmailDraft";
 import type { Draft } from "./EmailDraft";
-import "./agents.css";
 
 /** Create agents and select a private conversation in the Agents tab. */
 export function AgentsPage() {
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [opened, setOpened] = useState<string[]>([]);
-  const createDialog = useRef<HTMLDialogElement>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [instructions, setInstructions] = useState("");
   const [loading, setLoading] = useState(true);
@@ -22,22 +38,27 @@ export function AgentsPage() {
 
   useEffect(() => {
     let active = true;
-    listWorkspaceAgents().then((items) => {
-      if (!active) return;
-      setAgents(items);
-      setSelected(items[0]?.id ?? null);
-      setOpened(items[0] ? [items[0].id] : []);
-    }).catch((reason: unknown) => {
-      if (active) setError(errorMessage(reason));
-    }).finally(() => {
-      if (active) setLoading(false);
-    });
-    return () => { active = false; };
+    listWorkspaceAgents()
+      .then((items) => {
+        if (!active) return;
+        setAgents(items);
+        setSelected(items[0]?.id ?? null);
+        setOpened(items[0] ? [items[0].id] : []);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(errorMessage(reason));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   function selectAgent(id: string) {
     setSelected(id);
-    setOpened((items) => items.includes(id) ? items : [...items, id]);
+    setOpened((items) => (items.includes(id) ? items : [...items, id]));
   }
 
   async function create(event: FormEvent<HTMLFormElement>) {
@@ -49,7 +70,7 @@ export function AgentsPage() {
       const agent = await createWorkspaceAgent(name, instructions);
       setAgents((items) => [...items, agent]);
       selectAgent(agent.id);
-      createDialog.current?.close();
+      setCreateOpen(false);
       setName("");
       setInstructions("");
     } catch (reason) {
@@ -60,35 +81,105 @@ export function AgentsPage() {
   }
 
   return (
-      <main className="main-content agents-page" id="agents">
-        <header className="agents-toolbar">
-          <h1>Agents</h1>
-          {agents.length > 0 && (
-            <select aria-label="Switch agent" value={selected ?? ""} onChange={(event) => selectAgent(event.target.value)}>
-              {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
-            </select>
-          )}
-          <button type="button" className="button button-dark" onClick={() => { setError(""); createDialog.current?.showModal(); }} disabled={loading}>+ New agent</button>
-        </header>
-        <div className="agents-canvas">
-          {error && <p className="message message-error" role="alert">{error}</p>}
-            {selected ? <div className="agent-thread-slot">
-              {opened.map((id) => <div key={id} hidden={id !== selected}><AgentConversation id={id} visible={id === selected} /></div>)}
-            </div> : <p className="agent-empty-thread" role="status">{loading ? "Loading agents…" : "Create an agent to start a conversation."}</p>}
-        </div>
-        <dialog ref={createDialog} className="agent-create-dialog" aria-labelledby="agent-create-heading" onCancel={(event) => { if (creating) event.preventDefault(); }}>
-          <form onSubmit={create} className="agent-workspace-form">
-            <h2 id="agent-create-heading">Create an agent</h2>
-            {error && <p className="message message-error" role="alert">{error}</p>}
-            <label>Name<input required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} /></label>
-            <label>Instructions (optional)<textarea rows={4} maxLength={4000} value={instructions} onChange={(event) => setInstructions(event.target.value)} /></label>
-            <div className="agent-dialog-actions">
-              <button type="button" className="button button-outline" disabled={creating} onClick={() => { setError(""); createDialog.current?.close(); }}>Cancel</button>
-              <button className="button button-dark" disabled={creating}>{creating ? "Creating…" : "Create agent"}</button>
-            </div>
-          </form>
-        </dialog>
-      </main>
+    <Layout
+      height="fill"
+      content={
+        <LayoutContent role="main" id="agents" padding={0}>
+          <VStack gap={0} height="100%">
+            <HStack gap={3} padding={4} vAlign="center" wrap="wrap">
+              <Heading level={1}>Agents</Heading>
+              <StackItem size="fill">
+                {agents.length > 0 && selected && (
+                  <Selector
+                    label="Switch agent"
+                    isLabelHidden
+                    value={selected}
+                    onChange={(value) => selectAgent(value)}
+                    options={agents.map((agent) => ({ value: agent.id, label: agent.name }))}
+                    variant="secondary"
+                  />
+                )}
+              </StackItem>
+              <Button
+                label="+ New agent"
+                variant="primary"
+                isDisabled={loading}
+                onClick={() => {
+                  setError("");
+                  setCreateOpen(true);
+                }}
+              />
+            </HStack>
+
+            {error && !createOpen && <Banner status="error" title={error} />}
+
+            <StackItem size="fill" isScrollable={false}>
+              {selected ? (
+                <VStack height="100%">
+                  {opened.map((id) =>
+                    id === selected ? (
+                      <AgentConversation key={id} id={id} visible />
+                    ) : (
+                      <AgentConversation key={id} id={id} visible={false} />
+                    ),
+                  )}
+                </VStack>
+              ) : (
+                <EmptyState
+                  title={loading ? "Loading agents…" : "Create an agent to start a conversation."}
+                />
+              )}
+            </StackItem>
+          </VStack>
+
+          <Dialog
+            isOpen={createOpen}
+            onOpenChange={(isOpen) => {
+              if (!creating) setCreateOpen(isOpen);
+            }}
+            purpose="form"
+            width={480}
+          >
+            <DialogHeader
+              title="Create an agent"
+              onOpenChange={(isOpen) => {
+                if (!creating) setCreateOpen(isOpen);
+              }}
+            />
+            <form onSubmit={create}>
+              <VStack gap={4} padding={4}>
+                {error && <Banner status="error" title={error} />}
+                <TextInput label="Name" value={name} onChange={setName} isRequired />
+                <TextArea
+                  label="Instructions (optional)"
+                  value={instructions}
+                  onChange={setInstructions}
+                  rows={4}
+                  isOptional
+                />
+                <HStack gap={2} hAlign="end">
+                  <Button
+                    label="Cancel"
+                    variant="secondary"
+                    isDisabled={creating}
+                    onClick={() => {
+                      setError("");
+                      setCreateOpen(false);
+                    }}
+                  />
+                  <Button
+                    label={creating ? "Creating…" : "Create agent"}
+                    variant="primary"
+                    type="submit"
+                    isLoading={creating}
+                  />
+                </HStack>
+              </VStack>
+            </form>
+          </Dialog>
+        </LayoutContent>
+      }
+    />
   );
 }
 
@@ -102,7 +193,6 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
   const [started, setStarted] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [worked, setWorked] = useState<{ index: number; seconds: number } | null>(null);
-  const thread = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!pending) return;
@@ -112,27 +202,17 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
 
   useEffect(() => {
     let active = true;
-    getWorkspaceAgent(id).then((item) => {
-      if (active) setAgent(item);
-    }).catch((reason: unknown) => {
-      if (active) setError(errorMessage(reason));
-    });
-    return () => { active = false; };
+    getWorkspaceAgent(id)
+      .then((item) => {
+        if (active) setAgent(item);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(errorMessage(reason));
+      });
+    return () => {
+      active = false;
+    };
   }, [id]);
-
-  useEffect(() => {
-    if (visible && thread.current) thread.current.scrollTop = thread.current.scrollHeight;
-  }, [agent, pending, partialReply, visible]);
-
-  async function send(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const text = message.trim();
-    if (!text || pending) return;
-    setMessage("");
-    const box = event.currentTarget.querySelector("textarea");
-    if (box) box.style.height = "auto";
-    if (!(await submit(text))) setMessage(text);
-  }
 
   /** Post a message to the agent and stream its reply; returns whether it succeeded. */
   async function submit(text: string): Promise<boolean> {
@@ -155,79 +235,158 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
     }
   }
 
+  async function send(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || pending) return;
+    setMessage("");
+    if (!(await submit(trimmed))) setMessage(trimmed);
+  }
+
+  if (!visible) return null;
+
+  if (!agent) {
+    return error ? (
+      <Banner status="error" title={error} />
+    ) : (
+      <EmptyState title="Loading conversation…" isCompact />
+    );
+  }
+
   return (
-    <section className="agent-conversation" aria-label="Conversation">
-      {agent ? <>
-        <div className="agent-messages" ref={thread} role="log" aria-label={`Chat with ${agent.name}`}>
-          <div className="agent-thread-content">
-          {agent.messages.length === 0 && !pending && <div className="agent-empty-thread"><span className="agent-avatar" aria-hidden="true">{agent.name.slice(0, 1).toUpperCase()}</span><h2>{agent.name}</h2><p>Start a conversation</p></div>}
-          {agent.messages.map((entry, index) => (
-            <article key={index} className={`agent-message agent-message-${entry.role}`}>
-              {worked?.index === index && <p className="agent-worked">Worked for {worked.seconds}s</p>}
-              {entry.role === "assistant"
-                ? <AgentReply text={entry.content} onSend={index === agent.messages.length - 1 && !pending ? (draft) => void submit(sendCommand(draft)) : undefined} sent={sendState(agent.messages, index, pending)} />
-                : <UserMessage text={entry.content} />}
-            </article>
-          ))}
-          {pending && <>
-            <article className="agent-message agent-message-user"><UserMessage text={pending} /></article>
-            <p className="agent-reply-status" role="status">Working… {elapsed}s</p>
-            {partialReply && <article className="agent-message agent-message-assistant"><AgentReply text={partialReply} sent={null} /></article>}
-          </>}
-          </div>
-        </div>
-        <form onSubmit={send} className="agent-composer">
-          {error && <p className="message message-error" role="alert">{error}</p>}
-          <textarea aria-label={`Message ${agent.name}`} placeholder={`Message ${agent.name}`} required rows={1} onInput={(event) => { const box = event.currentTarget; box.style.height = "auto"; box.style.height = `${box.scrollHeight}px`; }} maxLength={8000} disabled={!!pending} value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }
-          }} />
-          <button className="agent-send" aria-label="Send" disabled={!!pending || !message.trim()}><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
-        </form>
-      </> : error ? <p className="message message-error" role="alert">{error}</p> : <p role="status">Loading conversation…</p>}
-    </section>
+    <ChatLayout
+      density="balanced"
+      emptyState={
+        agent.messages.length === 0 && !pending ? (
+          <EmptyState
+            title={agent.name}
+            description="Start a conversation"
+            icon={<Avatar name={agent.name} size="lg" />}
+          />
+        ) : undefined
+      }
+      composer={
+        <ChatComposer
+          value={message}
+          onChange={setMessage}
+          onSubmit={(value) => void send(value)}
+          placeholder={`Message ${agent.name}`}
+          isDisabled={!!pending}
+          status={error ? { type: "error", message: error } : undefined}
+        />
+      }
+    >
+      <ChatMessageList isStreaming={!!pending}>
+        {agent.messages.map((entry, index) => (
+          <ChatMessage
+            key={index}
+            sender={entry.role === "assistant" ? "assistant" : "user"}
+            avatar={<Avatar name={entry.role === "assistant" ? agent.name : "You"} size="sm" />}
+            name={entry.role === "assistant" ? agent.name : "You"}
+            metadata={worked?.index === index ? <Text type="supporting">Worked for {worked.seconds}s</Text> : undefined}
+          >
+            {entry.role === "assistant" ? (
+              <AgentReply
+                text={entry.content}
+                onSend={
+                  index === agent.messages.length - 1 && !pending
+                    ? (draft) => void submit(sendCommand(draft))
+                    : undefined
+                }
+                sent={sendState(agent.messages, index, pending)}
+              />
+            ) : (
+              <ChatMessageBubble>
+                <UserMessage text={entry.content} />
+              </ChatMessageBubble>
+            )}
+          </ChatMessage>
+        ))}
+        {pending && (
+          <>
+            <ChatMessage sender="user" avatar={<Avatar name="You" size="sm" />} name="You">
+              <ChatMessageBubble>
+                <UserMessage text={pending} />
+              </ChatMessageBubble>
+            </ChatMessage>
+            <ChatSystemMessage>Working… {elapsed}s</ChatSystemMessage>
+            {partialReply && (
+              <ChatMessage
+                sender="assistant"
+                avatar={<Avatar name={agent.name} size="sm" />}
+                name={agent.name}
+              >
+                <AgentReply text={partialReply} sent={null} />
+              </ChatMessage>
+            )}
+          </>
+        )}
+      </ChatMessageList>
+    </ChatLayout>
   );
 }
 
-/** What happened to the draft in message `index`: the version sent and its status, or null if not sent. */
-function sendState(messages: WorkspaceAgent["messages"], index: number, pending: string | null): { draft: Draft; label: string } | null {
+/** What happened to the draft in message `index`. */
+function sendState(
+  messages: WorkspaceAgent["messages"],
+  index: number,
+  pending: string | null,
+): { draft: Draft; label: string } | null {
   const next = messages[index + 1];
-  const command = next?.role === "user" ? parseSendCommand(next.content) : index === messages.length - 1 && pending ? parseSendCommand(pending) : null;
+  const command =
+    next?.role === "user"
+      ? parseSendCommand(next.content)
+      : index === messages.length - 1 && pending
+        ? parseSendCommand(pending)
+        : null;
   if (!command) return null;
   const answer = next?.role === "user" ? messages[index + 2] : undefined;
   if (!answer) return { draft: command, label: "Sending…" };
-  return { draft: command, label: /not (been )?sent|failed|error|could ?n.?t|unable|wasn.?t sent/i.test(answer.content) ? "Not sent" : "Sent" };
+  return {
+    draft: command,
+    label: /not (been )?sent|failed|error|could ?n.?t|unable|wasn.?t sent/i.test(answer.content)
+      ? "Not sent"
+      : "Sent",
+  };
 }
 
 /** Render an agent reply: Markdown, with email drafts shown as mail previews. */
-function AgentReply({ text, onSend, sent }: { text: string; onSend?: (draft: Draft) => void; sent: { draft: Draft; label: string } | null }) {
-  return <>{splitDrafts(text).map((segment, index) => {
-    if (segment.kind === "text") return <AgentMarkdown key={index} text={segment.text} />;
-    if (segment.kind === "drafting") return <p key={index} className="agent-reply-status">Writing the email draft…</p>;
-    return sent
-      ? <EmailDraftCard key={`sent-${index}`} draft={sent.draft} status={sent.label} />
-      : <EmailDraftCard key={index} draft={segment.draft} onSend={onSend} />;
-  })}</>;
+function AgentReply({
+  text,
+  onSend,
+  sent,
+}: {
+  text: string;
+  onSend?: (draft: Draft) => void;
+  sent: { draft: Draft; label: string } | null;
+}) {
+  return (
+    <VStack gap={2}>
+      {splitDrafts(text).map((segment, index) => {
+        if (segment.kind === "text") {
+          return (
+            <ChatMessageBubble key={index}>
+              <Markdown>{segment.text}</Markdown>
+            </ChatMessageBubble>
+          );
+        }
+        if (segment.kind === "drafting") {
+          return <ChatSystemMessage key={index}>Writing the email draft…</ChatSystemMessage>;
+        }
+        return sent ? (
+          <EmailDraftCard key={`sent-${index}`} draft={sent.draft} status={sent.label} />
+        ) : (
+          <EmailDraftCard key={index} draft={segment.draft} onSend={onSend} />
+        );
+      })}
+    </VStack>
+  );
 }
 
 /** Show a user message; a Send click appears as a compact mail line instead of raw JSON. */
 function UserMessage({ text }: { text: string }) {
   const draft = parseSendCommand(text);
-  if (!draft) return <p>{text}</p>;
-  return <p className="mail-send-line">Send “{draft.subject}”</p>;
-}
-
-/** Render Markdown in both saved messages and streaming replies. */
-function AgentMarkdown({ text }: { text: string }) {
-  return (
-    <div className="agent-markdown">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={["img"]} components={{
-        table: ({ children }) => <div className="agent-table-scroll"><table>{children}</table></div>,
-      }}>{text}</ReactMarkdown>
-    </div>
-  );
+  if (!draft) return <Text>{text}</Text>;
+  return <Text>Send “{draft.subject}”</Text>;
 }
 
 /** Format a failed request for display in the workspace. */
