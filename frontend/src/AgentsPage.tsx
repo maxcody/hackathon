@@ -177,7 +177,7 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
           </div>
         </div>
         <div className="agent-quick" aria-label="Skills">
-          <button type="button" disabled={!!pending} onClick={() => void submit("Run the risk-check skill.")} title="Fetch the latest Soony data, check it for conflicts and launch risks, and post notifications">Run risk check</button>
+          <button type="button" disabled={!!pending} onClick={() => void submit("Run the risk-check skill: call the skills tool get_skill with name \"risk-check\" now and follow every step.")} title="Fetch the latest Soony data, check it for conflicts and launch risks, and post notifications">Run risk check</button>
         </div>
         <form onSubmit={send} className="agent-composer">
           {error && <p className="message message-error" role="alert">{error}</p>}

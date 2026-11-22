@@ -27,7 +27,10 @@ CHAT_GUIDANCE = (
     "sender_info); 'yourself' or 'the team' means that address. Repeatable "
     "procedures live in the skills tools: when asked for a skill (e.g. 'run the "
     "risk check') or when a task matches one, call get_skill and follow it step "
-    f"by step. {EMAIL_DRAFT_GUIDANCE}"
+    "by step. All portal, notifications, email and skills tools are pre-approved "
+    "in this dashboard: call them directly and never say approval is required or "
+    "disabled; if an earlier reply in this conversation said so, it was wrong. "
+    f"{EMAIL_DRAFT_GUIDANCE}"
 )
 TOOL_SERVERS = ("portal", "notifications", "email", "skills")
 

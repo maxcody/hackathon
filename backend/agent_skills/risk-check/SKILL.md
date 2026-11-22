@@ -74,6 +74,11 @@ so reporting the same kind and subject again updates the notification instead
 of duplicating it. Pick the kind that fits the root cause, and use the same
 subject format on every run.
 
+Report every problem the available data supports, even when some files could
+not be downloaded (say so in `details`), and re-report problems that already
+have a notification so their values, solutions and "last seen" stay current.
+A run that finds problems but reports none is a failed run.
+
 For each problem call `report_notification` with:
 
 - `kind` and `subject`: as above
