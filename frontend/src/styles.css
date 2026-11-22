@@ -1,19 +1,48 @@
 @import "@astryxdesign/core/reset.css";
 @import "@astryxdesign/core/astryx.css";
 
-/* Agent "Working…" status: a light band sweeps through the words while the agent thinks.
-   Astryx has no animated-text component, so this is the one custom style (tokens only). */
-.thinking {
-  background: linear-gradient(100deg, var(--color-text-secondary) 40%, var(--color-text-primary) 50%, var(--color-text-secondary) 60%) 0 0 / 300% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: thinking-sweep 1.8s linear infinite;
+.agent-reply-enter {
+  animation: agent-message-in var(--duration-medium) ease-out both;
 }
-@keyframes thinking-sweep {
-  from { background-position: 100% 0; }
-  to { background-position: 0 0; }
+
+.agent-typing-dot {
+  display: inline-block;
+  animation: agent-typing-breathe var(--duration-slow) ease-in-out infinite;
 }
+
+.agent-typing-dot:nth-child(3) {
+  animation-delay: calc(var(--duration-fast) * 0.35);
+}
+
+.agent-typing-dot:nth-child(4) {
+  animation-delay: calc(var(--duration-fast) * 0.7);
+}
+
+@keyframes agent-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--spacing-2));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes agent-typing-breathe {
+  0%, 60%, 100% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(calc(var(--spacing-1) * -1));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .thinking { animation: none; color: var(--color-text-secondary); background: none; }
+  .agent-reply-enter,
+  .agent-typing-dot {
+    animation: none;
+  }
 }

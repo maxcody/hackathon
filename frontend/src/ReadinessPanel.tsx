@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { VStack, HStack, StackItem } from "@astryxdesign/core/Layout";
-import { Card } from "@astryxdesign/core/Card";
 import { Section } from "@astryxdesign/core/Section";
 import { ProgressBar } from "@astryxdesign/core/ProgressBar";
-import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Link } from "@astryxdesign/core/Link";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Table, proportional } from "@astryxdesign/core/Table";
 import type { TableColumn } from "@astryxdesign/core/Table";
-import { Grid } from "@astryxdesign/core/Grid";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { getReadiness } from "./api";
 import type { Notification, PartCoverage, Readiness } from "./types";
 
@@ -73,12 +72,13 @@ export function ReadinessPanel({ notifications }: { notifications: Notification[
 
   const rows: PartRow[] = useMemo(() => {
     if (!data) return [];
+    const priorities: Record<PartRow["tone"], number> = { short: 0, disputed: 1, ok: 2, muted: 3 };
     return data.parts.map((part) => {
       const issues = issuesFor(part, notifications);
       const disputed = part.balance >= 0 && issues.length > 0;
-      const tone = part.fitted_into ? "muted" : part.balance < 0 ? "short" : disputed ? "disputed" : "ok";
+      const tone: PartRow["tone"] = part.fitted_into ? "muted" : part.balance < 0 ? "short" : disputed ? "disputed" : "ok";
       return { ...part, issues, tone };
-    });
+    }).sort((a, b) => priorities[a.tone] - priorities[b.tone] || a.balance - b.balance);
   }, [data, notifications]);
 
   const columns: TableColumn<PartRow>[] = useMemo(
@@ -129,9 +129,13 @@ export function ReadinessPanel({ notifications }: { notifications: Notification[
             <Text color="secondary">–</Text>
           ) : (
             <VStack gap={0} hAlign="end">
-              <Text hasTabularNumbers weight="semibold">
-                {signed(part.balance)}
-              </Text>
+              <HStack gap={2} vAlign="center">
+                <StatusDot
+                  variant={part.tone === "short" ? "error" : part.tone === "disputed" ? "warning" : "success"}
+                  label={part.tone === "short" ? "shortage" : part.tone === "disputed" ? "evidence conflict" : "covered"}
+                />
+                <Text hasTabularNumbers weight="semibold">{signed(part.balance)}</Text>
+              </HStack>
               {part.tone === "disputed" && (
                 <Text type="supporting" color="secondary">
                   per ERP · disputed
@@ -149,13 +153,15 @@ export function ReadinessPanel({ notifications }: { notifications: Notification[
             <Text color="secondary">not stocked separately</Text>
           ) : part.inbound.length ? (
             <VStack gap={1}>
-              {part.inbound.map((s) => (
-                <Badge
-                  key={s.shipment_id}
-                  label={`${s.mode} · ${day(s.eta)} · ${s.status.replace(/_/g, " ")}`}
-                  variant={s.status.includes("delay") || s.status.includes("hold") ? "warning" : "neutral"}
-                />
-              ))}
+              {part.inbound.map((s) => {
+                const risk = s.status.includes("delay") || s.status.includes("hold");
+                return (
+                  <HStack key={s.shipment_id} gap={2} vAlign="center">
+                    <StatusDot variant={risk ? "warning" : "accent"} label={s.status.replace(/_/g, " ")} />
+                    <Text type="supporting">{s.mode} · {day(s.eta)} · {s.status.replace(/_/g, " ")}</Text>
+                  </HStack>
+                );
+              })}
             </VStack>
           ) : (
             <Text color="secondary">none</Text>
@@ -200,44 +206,46 @@ export function ReadinessPanel({ notifications }: { notifications: Notification[
           </Text>
         </HStack>
 
-        <Grid columns={{ minWidth: 240, max: 3 }} gap={3}>
-          {data.editions.map((edition) => {
-            const pct = edition.day_one ? Math.min(100, (edition.packed / edition.day_one) * 100) : 0;
-            return (
-              <Card key={edition.product_id} padding={4}>
-                <VStack gap={3}>
-                  <Text weight="semibold">{editionName(edition.name)}</Text>
-                  <HStack gap={1} vAlign="end">
-                    <Text size="xl" weight="bold" hasTabularNumbers>
-                      {number.format(edition.remaining)}
-                    </Text>
-                    <Text type="supporting" color="secondary">
-                      still to pack
-                    </Text>
-                  </HStack>
-                  <ProgressBar
-                    label={`${editionName(edition.name)} packed`}
-                    isLabelHidden
-                    value={pct}
-                    hasValueLabel
-                    formatValueLabel={() =>
-                      `${number.format(edition.packed)} of ${number.format(edition.day_one)} packed (${pct.toFixed(0)}%)`
-                    }
-                    variant={pct >= 90 ? "success" : pct >= 50 ? "accent" : "warning"}
-                  />
-                  <Text type="supporting" color="secondary">
-                    as of {day(edition.last_packed)}
-                  </Text>
-                  {edition.hours_left != null && edition.rate_per_hour ? (
-                    <Text type="supporting" color="secondary">
-                      ≈ {edition.hours_left} h of packing at {number.format(edition.rate_per_hour)}/h
-                    </Text>
-                  ) : null}
-                </VStack>
-              </Card>
-            );
-          })}
-        </Grid>
+        <VStack gap={2}>
+          <Heading level={3}>Packing progress</Heading>
+          <List density="compact" hasDividers>
+            {data.editions.map((edition) => {
+              const pct = edition.day_one ? Math.min(100, (edition.packed / edition.day_one) * 100) : 0;
+              return (
+                <ListItem
+                  key={edition.product_id}
+                  label={editionName(edition.name)}
+                  description={
+                    <VStack gap={1}>
+                      <ProgressBar
+                        label={`${editionName(edition.name)} packed`}
+                        isLabelHidden
+                        value={pct}
+                        hasValueLabel
+                        formatValueLabel={() =>
+                          `${number.format(edition.packed)} of ${number.format(edition.day_one)} packed (${pct.toFixed(0)}%)`
+                        }
+                        variant={pct >= 90 ? "success" : pct >= 50 ? "accent" : "warning"}
+                      />
+                      <Text type="supporting" color="secondary">
+                        Updated {day(edition.last_packed)}
+                        {edition.hours_left != null && edition.rate_per_hour
+                          ? ` · approx. ${edition.hours_left} h at ${number.format(edition.rate_per_hour)}/h`
+                          : ""}
+                      </Text>
+                    </VStack>
+                  }
+                  endContent={
+                    <VStack gap={0} hAlign="end">
+                      <Text size="lg" weight="bold" hasTabularNumbers>{number.format(edition.remaining)}</Text>
+                      <Text type="supporting" color="secondary">left to pack</Text>
+                    </VStack>
+                  }
+                />
+              );
+            })}
+          </List>
+        </VStack>
 
         <Table data={rows} columns={columns} idKey="component_id" density="compact" hasHover dividers="rows" />
 

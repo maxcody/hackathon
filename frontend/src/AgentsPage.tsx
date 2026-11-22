@@ -19,6 +19,8 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { Selector } from "@astryxdesign/core/Selector";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Section } from "@astryxdesign/core/Section";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { createWorkspaceAgent, getWorkspaceAgent, listWorkspaceAgents, sendAgentMessage } from "./api";
 import type { AgentSummary, WorkspaceAgent } from "./types";
 import { EmailDraftCard, parseSendCommand, sendCommand, splitDrafts } from "./EmailDraft";
@@ -253,29 +255,52 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
   }
 
   return (
-    <ChatLayout
-      density="balanced"
-      emptyState={
-        agent.messages.length === 0 && !pending ? (
-          <EmptyState
-            title={agent.name}
-            description="Start a conversation"
-            icon={<Avatar name={agent.name} size="lg" />}
-          />
-        ) : undefined
-      }
-      composer={
-        <ChatComposer
-          value={message}
-          onChange={setMessage}
-          onSubmit={(value) => void send(value)}
-          placeholder={`Message ${agent.name}`}
-          isDisabled={!!pending}
-          status={error ? { type: "error", message: error } : undefined}
-        />
-      }
-    >
-      <ChatMessageList isStreaming={!!pending}>
+    <VStack gap={0} height="100%">
+      <Section padding={3} variant="muted">
+        <HStack gap={3} vAlign="center">
+          <Avatar name={agent.name} size="md" />
+          <StackItem size="fill">
+            <VStack gap={0}>
+              <Heading level={3}>{agent.name}</Heading>
+              <Text type="supporting" color="secondary">Private workspace conversation · replies stream as they arrive</Text>
+            </VStack>
+          </StackItem>
+          <StatusDot variant={pending ? "warning" : "accent"} label={pending ? "Working" : "Ready"} />
+        </HStack>
+      </Section>
+      <StackItem size="fill" isScrollable={false}>
+        <ChatLayout
+          density="spacious"
+          emptyState={
+            agent.messages.length === 0 && !pending ? (
+              <VStack gap={3} hAlign="center" padding={6}>
+                <Avatar name={agent.name} size="lg" />
+                <Heading level={2}>What should we investigate?</Heading>
+                <Text color="secondary">Ask this agent to inspect your synced procurement data.</Text>
+                <HStack gap={2} wrap="wrap" hAlign="center">
+                  {[
+                    "Check the data for launch risks",
+                    "Which critical parts need attention?",
+                    "Find recent supplier changes",
+                  ].map((prompt) => (
+                    <Button key={prompt} label={prompt} variant="secondary" size="sm" onClick={() => setMessage(prompt)} />
+                  ))}
+                </HStack>
+              </VStack>
+            ) : undefined
+          }
+          composer={
+            <ChatComposer
+              value={message}
+              onChange={setMessage}
+              onSubmit={(value) => void send(value)}
+              placeholder={`Message ${agent.name}`}
+              isDisabled={!!pending}
+              status={error ? { type: "error", message: error } : undefined}
+            />
+          }
+        >
+          <ChatMessageList isStreaming={!!pending} density="spacious">
         {agent.messages.map((entry, index) => (
           <ChatMessage
             key={index}
@@ -312,18 +337,27 @@ function AgentConversation({ id, visible }: { id: string; visible: boolean }) {
               sender="assistant"
               avatar={<Avatar name={agent.name} size="sm" />}
               name={agent.name}
-              metadata={partialReply ? <Text type="supporting"><span className="thinking">Working… {elapsed}s</span></Text> : undefined}
+              className="agent-reply-enter"
+              metadata={partialReply ? <Text type="supporting" color="secondary">Working… {elapsed}s</Text> : undefined}
             >
               {partialReply ? (
                 <AgentReply text={partialReply} sent={null} />
               ) : (
-                <Text type="supporting"><span className="thinking">Working… {elapsed}s</span></Text>
+                <HStack gap={1} vAlign="center" className="agent-typing" role="status" aria-label="Agent is thinking">
+                  <Text type="supporting" color="secondary">Working</Text>
+                  {[0, 1, 2].map((dot) => (
+                    <Text key={dot} type="supporting" color="accent" className="agent-typing-dot">·</Text>
+                  ))}
+                  <Text type="supporting" color="secondary">{elapsed}s</Text>
+                </HStack>
               )}
             </ChatMessage>
           </>
         )}
-      </ChatMessageList>
-    </ChatLayout>
+          </ChatMessageList>
+        </ChatLayout>
+      </StackItem>
+    </VStack>
   );
 }
 

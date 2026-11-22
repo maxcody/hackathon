@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     # Dashboard chat engine: "codex" runs the local Codex CLI with its MCP tools,
     # "openai" calls LLM_MODEL directly (no tools).
     chat_engine: Literal["codex", "openai"] = "codex"
+    # Optional absolute path, useful when the backend process has a different PATH.
+    codex_cli_path: str | None = None
     codex_model: str | None = None  # empty: Codex's own default model
     codex_reasoning_effort: Literal["minimal", "low", "medium", "high"] = "low"
     codex_timeout_seconds: PositiveInt = (

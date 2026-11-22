@@ -31,6 +31,7 @@ type DataRow = {
 };
 
 const number = new Intl.NumberFormat("en-US");
+const PAGE_SIZE = 60;
 const CURRENCY: Record<string, string> = { EUR: "€", USD: "$", CNY: "¥", INR: "₹", KRW: "₩", PLN: "zł " };
 /** Which dataset/column a linkable kind opens (mirrors app/dataset.py LINKS). */
 const LINKS: Record<string, { dataset: string; column: string }> = {
@@ -150,6 +151,12 @@ export function DataPage({ notifications }: { notifications: Notification[] }) {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [onlyIssues, setOnlyIssues] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const activeDataset = catalog.find((dataset) => dataset.key === view.key);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [view.key, view.filter?.value, query, onlyIssues]);
 
   useEffect(() => {
     listDatasets()
@@ -491,19 +498,17 @@ export function DataPage({ notifications }: { notifications: Notification[] }) {
         <VStack gap={1} padding={4} paddingBlockEnd={0}>
           <Heading level={1}>Data</Heading>
           <Text color="secondary">
-            What you need to run and watch the supply chain · click an id to jump to its table · rows with an
-            open issue are marked
+            Launch parts, orders, shipments, receipts and supplier evidence. Select a dataset to inspect its rows.
           </Text>
         </VStack>
       }
       start={
-        <LayoutPanel width={232} hasDivider label="Datasets" padding={2}>
-          <List density="compact">
+        <LayoutPanel width={280} hasDivider label="Datasets" padding={2}>
+          <List density="balanced">
             {catalog.map((d) => (
               <ListItem
                 key={d.key}
                 label={d.title}
-                description={d.description}
                 isSelected={d.key === view.key}
                 onClick={() => {
                   setHistory([]);
@@ -529,6 +534,9 @@ export function DataPage({ notifications }: { notifications: Notification[] }) {
                   <StackItem size="fill">
                     <VStack gap={0}>
                       <Heading level={2}>{table.title}</Heading>
+                      {activeDataset?.description && (
+                        <Text type="supporting" color="secondary">{activeDataset.description}</Text>
+                      )}
                       <Text type="supporting" color="secondary">
                         {filteredRows.length === table.rows.length
                           ? `${number.format(table.rows.length)} rows`
@@ -551,38 +559,51 @@ export function DataPage({ notifications }: { notifications: Notification[] }) {
                       onClick={() => setView({ key: view.key })}
                     />
                   )}
-                  <CheckboxInput
-                    label={`Open issues only (${flagged})`}
-                    value={onlyIssues}
-                    onChange={setOnlyIssues}
-                  />
+                </HStack>
+
+                <HStack gap={4} vAlign="center" wrap="wrap">
                   <StackItem size="fill">
                     <TextInput
                       label="Search this table"
                       isLabelHidden
                       type="search"
-                      placeholder="Search this table"
+                      placeholder="Search rows by part, order, supplier or file"
                       value={query}
                       onChange={setQuery}
                       startIcon="search"
                       hasClear
                     />
                   </StackItem>
+                  <CheckboxInput
+                    label={`Open issues only (${flagged})`}
+                    value={onlyIssues}
+                    onChange={setOnlyIssues}
+                  />
                 </HStack>
 
                 <Table
-                  data={sortedData.slice(0, 500)}
+                  data={sortedData.slice(0, visibleCount)}
                   columns={columns}
                   idKey="id"
-                  density="compact"
+                  density="balanced"
                   hasHover
                   plugins={{ sort: sortPlugin }}
                   emptyState={<EmptyState title="No rows match." isCompact />}
                 />
-                {filteredRows.length > 500 && (
-                  <Text type="supporting" color="secondary">
-                    Showing the first 500 rows; search, filter or sort to narrow down.
-                  </Text>
+                {sortedData.length > 0 && (
+                  <HStack gap={3} vAlign="center" hAlign="between" wrap="wrap">
+                    <Text type="supporting" color="secondary">
+                      Showing {Math.min(visibleCount, sortedData.length)} of {number.format(sortedData.length)} rows
+                    </Text>
+                    {sortedData.length > visibleCount && (
+                      <Button
+                        label={`Show ${Math.min(PAGE_SIZE, sortedData.length - visibleCount)} more rows`}
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                      />
+                    )}
+                  </HStack>
                 )}
               </>
             )}

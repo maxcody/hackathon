@@ -56,7 +56,25 @@ By default each agent runs as a Codex session (`codex exec`) with the `portal`,
 `notifications` and `email` MCP tools; follow-up messages resume the session.
 Set `CHAT_ENGINE=openai` to answer through `LLM_MODEL` directly instead (no tools).
 Codex options: `CODEX_MODEL`, `CODEX_REASONING_EFFORT` (default `low`),
-`CODEX_TIMEOUT_SECONDS` (default 1200).
+`CODEX_TIMEOUT_SECONDS` (default 1200). If the backend cannot find the CLI on
+its `PATH`, set `CODEX_CLI_PATH` in `backend/.env` to the full path of
+`codex.exe` and restart the backend. The CLI must also be signed in as the same
+Windows user that runs the backend (`codex login status`).
+
+Register the project MCP tools once in the same user's Codex config. From
+`backend/`, run:
+
+```powershell
+$python = (Resolve-Path .venv/Scripts/python.exe).Path
+$portal = (Resolve-Path scripts/portal_mcp.py).Path
+$notifications = (Resolve-Path scripts/notifications_mcp.py).Path
+$email = (Resolve-Path scripts/email_mcp.py).Path
+$skills = (Resolve-Path scripts/skills_mcp.py).Path
+codex mcp add portal -- $python $portal
+codex mcp add notifications -- $python $notifications
+codex mcp add email -- $python $email
+codex mcp add skills -- $python $skills
+```
 
 ## Agent skills
 

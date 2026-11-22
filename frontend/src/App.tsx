@@ -6,6 +6,7 @@ import {
   InboxIcon,
   Squares2X2Icon,
   CpuChipIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import { AppShell } from "@astryxdesign/core/AppShell";
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
@@ -132,7 +133,7 @@ export function App() {
       />
     );
   } else {
-    page = <Dashboard notifications={notifications} />;
+    page = <Dashboard notifications={notifications} refresh={refresh} />;
   }
 
   return (
@@ -209,6 +210,12 @@ function AppSideNav({ location }: { location: string }) {
           isSelected={current === "#data"}
         />
         <SideNavItem
+          label="Issues"
+          icon={ExclamationTriangleIcon}
+          href="#issues"
+          isSelected={current === "#issues"}
+        />
+        <SideNavItem
           label="Agents"
           icon={CpuChipIcon}
           href="#agents"
@@ -219,13 +226,17 @@ function AppSideNav({ location }: { location: string }) {
   );
 }
 
-/** Launch overview: countdown, data sync and readiness; issues live on their own page. */
-function Dashboard({ notifications }: { notifications: Notification[] }) {
+/** Launch overview: urgent actions first, followed by packing and component readiness. */
+function Dashboard({ notifications, refresh }: { notifications: Notification[]; refresh: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const open = notifications.filter(isOpen);
   const critical = open.filter((n) => severityOf(n) === "critical").length;
+  const priority = [...open].sort(
+    (a, b) => severityOrder.indexOf(severityOf(a)) - severityOrder.indexOf(severityOf(b)) ||
+      b.seen_at.localeCompare(a.seen_at),
+  );
 
   async function handleSync() {
     setBusy(true);
@@ -257,12 +268,13 @@ function Dashboard({ notifications }: { notifications: Notification[] }) {
             <HStack gap={4} vAlign="end" wrap="wrap">
               <StackItem size="fill">
                 <VStack gap={1}>
-                  <Heading level={1}>Grand Heist 6 launch</Heading>
+                  <Heading level={1}>Grand Heist 6 · launch control</Heading>
                   <Text color="secondary">
-                    Sun 22 Nov, 20:00 · DC Hamburg · {timeToLaunch()}
+                    Sun 22 Nov, 20:00 · DC Hamburg · {timeToLaunch()} remaining
                   </Text>
                 </VStack>
               </StackItem>
+              <RiskCheck onFinished={refresh} />
               <Button
                 label={busy ? "Syncing…" : "Sync portal data"}
                 variant="secondary"
@@ -291,22 +303,40 @@ function Dashboard({ notifications }: { notifications: Notification[] }) {
               />
             )}
 
-            <Card padding={4} elevation="low">
-              <HStack gap={4} vAlign="center" wrap="wrap">
-                <StackItem size="fill">
-                  <VStack gap={1}>
-                    <HStack gap={2} vAlign="center">
-                      <Text weight="semibold">{open.length} open issues</Text>
-                      {critical > 0 && <Badge label={`${critical} critical`} variant="error" />}
-                    </HStack>
-                    <Text type="supporting" color="secondary">
-                      What the agents found, with proposed solutions
-                    </Text>
-                  </VStack>
-                </StackItem>
-                <Button label="View issues" variant="primary" href="#issues" />
-              </HStack>
-            </Card>
+            <Section padding={0}>
+              <VStack gap={3}>
+                <HStack gap={3} vAlign="center" wrap="wrap">
+                  <StackItem size="fill">
+                    <VStack gap={1}>
+                      <Heading level={2}>Needs attention</Heading>
+                      <Text type="supporting" color="secondary">
+                        {critical} critical · {open.length - critical} other open issues
+                      </Text>
+                    </VStack>
+                  </StackItem>
+                  {critical > 0 && <Badge label={`${critical} critical`} variant="error" />}
+                  <Button label="All issues" variant="secondary" href="#issues" />
+                </HStack>
+                {priority.length ? (
+                  <Card padding={0} elevation="low">
+                    <List density="compact" hasDividers>
+                      {priority.slice(0, 5).map((notification) => (
+                        <ListItem
+                          key={notification.id}
+                          align="first-line"
+                          label={notification.data.title || `${notification.attr} mismatch`}
+                          description={`${severityOf(notification)} · ${notification.data.details ?? notification.data.kind ?? "Review source evidence"}${notification.data.refs?.length ? ` · ${notification.data.refs.slice(0, 2).join(", ")}` : ""}`}
+                          startContent={<StatusDot variant={severityDot(severityOf(notification))} label={severityOf(notification)} />}
+                          href={`#n-${notification.id}`}
+                        />
+                      ))}
+                    </List>
+                  </Card>
+                ) : (
+                  <EmptyState title="No open issues" description="The latest risk check found nothing that needs review." isCompact />
+                )}
+              </VStack>
+            </Section>
 
             <ReadinessPanel notifications={notifications} />
           </VStack>

@@ -55,6 +55,33 @@ APP_SERVER_LOG = (
 )
 
 
+def _codex_executable() -> str:
+    """Find the Codex CLI, honoring an explicit path before searching PATH.
+
+    Returns:
+        The executable path used to start Codex.
+
+    Raises:
+        CodexError: If the configured executable does not exist or Codex is not
+            visible to the backend process.
+    """
+    if settings.codex_cli_path:
+        configured = Path(settings.codex_cli_path).expanduser()
+        if configured.is_file():
+            return str(configured)
+        raise CodexError(
+            f"CODEX_CLI_PATH does not point to a file: {configured}. "
+            "Update backend/.env and restart the backend."
+        )
+    executable = shutil.which("codex")
+    if executable:
+        return executable
+    raise CodexError(
+        "The Codex CLI is not visible to the backend. Set CODEX_CLI_PATH in "
+        "backend/.env to the full path of codex.exe, then restart the backend."
+    )
+
+
 def build_command(executable: str, thread_id: str | None) -> list[str]:
     """Return the ``codex exec`` command for a new or resumed session.
 
@@ -129,9 +156,7 @@ def run_turn(prompt: str, thread_id: str | None) -> tuple[str, str]:
     Raises:
         CodexError: If Codex is not installed, times out or fails.
     """
-    executable = shutil.which("codex")
-    if executable is None:
-        raise CodexError("The Codex CLI is not installed on the backend machine.")
+    executable = _codex_executable()
     folder = data_root()
     folder.mkdir(parents=True, exist_ok=True)
     try:
@@ -178,9 +203,7 @@ async def _stream_turn(
     prompt: str, thread_id: str | None, emit: Callable[[str], Awaitable[None]]
 ) -> tuple[str, str]:
     """Run one streamed Codex turn on the current (subprocess-capable) loop."""
-    executable = shutil.which("codex")
-    if executable is None:
-        raise CodexError("The Codex CLI is not installed on the backend machine.")
+    executable = _codex_executable()
     folder = data_root()
     folder.mkdir(parents=True, exist_ok=True)
     APP_SERVER_LOG.parent.mkdir(parents=True, exist_ok=True)
@@ -265,7 +288,13 @@ async def _stream_turn(
                     "params": {
                         "threadId": active_id,
                         "input": [
-                            {"type": "text", "text": f"{MARKDOWN_GUIDANCE}\n\n{prompt}"}
+                            {
+                                "type": "text",
+                                "text": (
+                                    f"{CHAT_GUIDANCE}\n\n"
+                                    f"{MARKDOWN_GUIDANCE}\n\n{prompt}"
+                                ),
+                            }
                         ],
                     },
                 }
