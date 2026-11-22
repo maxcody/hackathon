@@ -1,70 +1,157 @@
-import type { ApiCallResult, HttpMethod } from "./types";
+import type {
+  AgentSummary,
+  Dataset,
+  DatasetInfo,
+  Lookups,
+  Mailbox,
+  MasterImportSummary,
+  Notification,
+  NotificationData,
+  Readiness,
+  SheetImportSummary,
+  SkillRun,
+  SyncResult,
+  WorkspaceAgent,
+} from "./types";
 
-/** Call a backend endpoint and preserve its actual response for the UI.
- * @param path - Backend route and query string.
- * @param method - HTTP method for the request.
- * @param body - Optional JSON or browser request body.
- * @returns The response status, timing, and parsed body, including network errors.
- */
-export async function callApi(
-  path: string,
-  method: HttpMethod = "GET",
-  body?: unknown,
-): Promise<ApiCallResult> {
-  const started = performance.now();
-  const id = crypto.randomUUID();
-  const headers = new Headers();
-  let requestBody: BodyInit | undefined;
-  if (body instanceof FormData || body instanceof Blob || typeof body === "string") {
-    requestBody = body;
-  } else if (body !== undefined) {
-    headers.set("Content-Type", "application/json");
-    requestBody = JSON.stringify(body);
+/** Make a typed request to the backend API. */
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(path, options);
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => ({}));
+    const detail =
+      typeof body === "object" && body !== null && "detail" in body
+        ? String(body.detail)
+        : `Request failed (${response.status})`;
+    throw new Error(detail);
   }
-
-  try {
-    const response = await fetch(path, { method, headers, body: requestBody });
-    const raw = response.status === 204 ? null : await response.text();
-    let parsed: unknown = raw;
-    if (raw) {
-      try {
-        parsed = JSON.parse(raw) as unknown;
-      } catch {
-        parsed = raw;
-      }
-    }
-    return {
-      id,
-      method,
-      path,
-      status: response.status,
-      statusText: response.statusText,
-      durationMs: Math.round(performance.now() - started),
-      ok: response.ok,
-      body: parsed,
-      at: new Date().toISOString(),
-    };
-  } catch (error) {
-    return {
-      id,
-      method,
-      path,
-      status: 0,
-      statusText: "Network error",
-      durationMs: Math.round(performance.now() - started),
-      ok: false,
-      body: { error: error instanceof Error ? error.message : "Could not reach the API." },
-      at: new Date().toISOString(),
-    };
-  }
+  return (await response.json()) as T;
 }
 
-/** Render a response as readable JSON, including non-JSON response bodies.
- * @param body - Response body returned by the backend.
- * @returns A readable string for the response viewer.
- */
-export function formatResponse(body: unknown): string {
-  if (body === undefined) return "";
-  if (typeof body === "string") return body;
-  return JSON.stringify(body, null, 2) ?? "null";
+/** Construct a JSON request with the given method. */
+function json(method: string, body: unknown): RequestInit {
+  return { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+}
+
+/** List the notifications the agents have posted. */
+export function listNotifications(): Promise<Notification[]> {
+  return request("/notifications");
+}
+
+/** Replace a notification's `data`, e.g. to change its status. */
+export function updateNotificationData(id: number, data: NotificationData): Promise<Notification> {
+  return request(`/notifications/${id}`, json("PATCH", { data }));
+}
+
+/** Send a solution's (possibly edited) email; returns the updated notification. */
+export function sendSolutionEmail(
+  notificationId: number,
+  index: number,
+  email: { to: string[]; cc: string[]; subject: string; body: string; approved_by?: string },
+): Promise<Notification> {
+  return request(`/notifications/${notificationId}/solutions/${index}/send`, json("POST", email));
+}
+
+/** Sent (and, once connected, received) emails with delivery status. */
+export function getMailbox(): Promise<Mailbox> {
+  return request("/inbox");
+}
+
+/** Drop an email's analysis so the agent analyzes it again on its next cycle. */
+export async function reanalyzeEmail(messageId: string): Promise<void> {
+  const response = await fetch(`/inbox/analyses?message_id=${encodeURIComponent(messageId)}`, { method: "DELETE" });
+  if (!response.ok) throw new Error(`Could not restart the analysis (${response.status}).`);
+}
+
+/** The datasets the Data tab offers. */
+export function listDatasets(): Promise<DatasetInfo[]> {
+  return request("/dataset");
+}
+
+/** Part and supplier names, documents behind ids, and the open orders. */
+export function getLookups(): Promise<Lookups> {
+  return request("/dataset/lookups");
+}
+
+/** Rows and columns of one dataset. */
+export function getDataset(key: string): Promise<Dataset> {
+  return request(`/dataset/${encodeURIComponent(key)}`);
+}
+
+/** Status of the latest run of an agent skill. */
+export function getSkillRun(skill: string): Promise<SkillRun> {
+  return request(`/skills/${encodeURIComponent(skill)}`);
+}
+
+/** Start an agent skill in the background (it runs for a few minutes). */
+export function startSkillRun(skill: string): Promise<SkillRun> {
+  return request(`/skills/${encodeURIComponent(skill)}/run`, { method: "POST" });
+}
+
+/** Launch readiness per edition and part coverage, as the ERP files state it. */
+export function getReadiness(): Promise<Readiness> {
+  return request("/readiness");
+}
+
+/** Download new or changed portal files into the backend's data folder. */
+export function syncPortal(): Promise<SyncResult> {
+  return request("/import/sync", { method: "POST" });
+}
+
+/** Reload products, components and BOM from the master CSVs. */
+export function importMaster(): Promise<MasterImportSummary> {
+  return request("/import/master", { method: "POST" });
+}
+
+/** Reload the sheet rows from every xlsx in the data folder. */
+export function importSheets(): Promise<SheetImportSummary> {
+  return request("/import/sheets", { method: "POST" });
+}
+
+/** List user-created agents. */
+export function listWorkspaceAgents(): Promise<AgentSummary[]> {
+  return request("/api/agent-workspace");
+}
+
+/** Create an agent with optional instructions. */
+export function createWorkspaceAgent(name: string, instructions: string): Promise<WorkspaceAgent> {
+  return request("/api/agent-workspace", json("POST", { name, instructions }));
+}
+
+/** Load a specific agent and conversation. */
+export function getWorkspaceAgent(id: string): Promise<WorkspaceAgent> {
+  return request(`/api/agent-workspace/${encodeURIComponent(id)}`);
+}
+
+/** Send a message and receive text as the selected agent generates it. */
+export async function sendAgentMessage(
+  id: string,
+  message: string,
+  onDelta: (text: string) => void,
+): Promise<WorkspaceAgent> {
+  const response = await fetch(`/api/agent-workspace/${encodeURIComponent(id)}/chat/stream`, json("POST", { message }));
+  if (!response.ok || !response.body) throw new Error(`Chat request failed (${response.status}).`);
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error("The chat connection closed before the reply finished.");
+      buffer += value;
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line) continue;
+        const event = JSON.parse(line) as
+          | { type: "delta"; text: string }
+          | { type: "done"; agent: WorkspaceAgent }
+          | { type: "error"; detail: string };
+        if (event.type === "delta") onDelta(event.text);
+        if (event.type === "done") return event.agent;
+        if (event.type === "error") throw new Error(event.detail);
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
 }

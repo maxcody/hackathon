@@ -1,9 +1,16 @@
-# Hackathon
+# Linewatch — Soony Launch Control
 
-FastAPI + Postgres backend.
+Dashboard and agents for the Lio Hack League case. The backend stores Soony's launch data and the notifications the dashboard shows (see `backend/HOW_IT_WORKS.md`). The analysis runs in Codex agents outside the backend: they read the portal data, write findings as notifications and can email suppliers.
+
+## How the parts fit
+- **Backend** (`backend/`): Postgres CRUD over products, components, BOM, sheet rows and notifications, plus `/import/sync|master|sheets` to load the portal files. It also serves the built dashboard at `/` and the agent chat at `/api/agent-workspace`.
+- **Dashboard** (`frontend/`): shows the notifications, triggers portal sync and imports, and hosts the **Agents** tab.
+- **Agents**: each dashboard agent is a Codex session with three MCP tools from `backend/scripts/`: `portal` (read portal files), `notifications` (post findings to `/notifications`) and `email` (send mail after confirmation).
 
 ## Stack
 - FastAPI, async SQLAlchemy 2, asyncpg, Alembic
+- React, TypeScript, Vite, and Meta’s Astryx design system (`@astryxdesign/core`) for the dashboard
+- Codex CLI for the agents; optional direct chat via the OpenAI SDK (`CHAT_ENGINE=openai`, `LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`)
 - ruff, black, isort, pytest, pre-commit
 
 ## Backend structure
@@ -21,18 +28,90 @@ FastAPI + Postgres backend.
 - `.github/workflows/ci.yml`: CI that runs lint and tests
 
 ## Setup
-```bash
-docker compose up -d db
-
+```powershell
+docker compose up -d db          # from the repo root
 cd backend
-python3 -m venv .venv && source .venv/bin/activate
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
-cp .env.example .env
-
+Copy-Item .env.example .env
 make migrate
-make run
+uvicorn app.main:app --reload
 ```
-API docs: http://localhost:8000/docs
+For frontend development, keep the API running in one terminal and start Vite in a second:
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+Open the Vite URL printed in the terminal (normally http://127.0.0.1:5173/). Vite proxies `/api`, `/import` and `/notifications` requests to `http://127.0.0.1:8000`. If the backend is using another port, set the proxy first, for example `$env:VITE_API_PROXY_TARGET="http://127.0.0.1:8001"`.
+
+To build the React dashboard for FastAPI, run `npm run build` from `frontend/`. Then open http://localhost:8000/; FastAPI serves the built React app. API docs: http://localhost:8000/docs.
+
+## Agents tab
+
+Open **Agents** in the dashboard to create an agent with a name and optional
+instructions. Agents and their chats live in `.local_data/agents.sqlite3`.
+By default each agent runs as a Codex session (`codex exec`) with the `portal`,
+`notifications` and `email` MCP tools; follow-up messages resume the session.
+Set `CHAT_ENGINE=openai` to answer through `LLM_MODEL` directly instead (no tools).
+Codex options: `CODEX_MODEL`, `CODEX_REASONING_EFFORT` (default `low`),
+`CODEX_TIMEOUT_SECONDS` (default 1200).
+
+## Agent skills
+
+Repeatable procedures live in `backend/agent_skills/<name>/SKILL.md` (Agent
+Skills format: front matter with `name` and `description`, then the steps).
+The `skills` MCP server (`backend/scripts/skills_mcp.py`) gives every agent
+`list_skills` and `get_skill`; a new folder is a new skill, no code change.
+Register it once with Codex:
+
+```powershell
+codex mcp add skills -- "<repo>\.venv\Scripts\python.exe" "<repo>\backend\scripts\skills_mcp.py"
+```
+
+`risk-check` syncs the portal, cross-checks ERP, master data, supplier
+documents and receiving scans, and posts one notification per problem (stable
+keys, so reruns update instead of duplicating). Run it with **Run risk check**
+in the agent chat, by asking an agent, or headless (e.g. from Task Scheduler),
+from `backend/`:
+
+```powershell
+..\.venv\Scripts\python.exe scripts/run_skill.py risk-check
+```
+
+## Inbox
+
+The **Inbox** tab lists sent mail (from `.local_data/sent_emails.jsonl`) with
+its Brevo delivery status. Received mail (supplier replies to `SMTP_USER`)
+comes from a small Google Apps Script, because IMAP is often blocked on company
+networks while HTTPS to Google is not. Set it up once, signed in as the sender
+Gmail account (any device works):
+
+1. https://script.google.com: new project, paste `backend/scripts/gmail_inbox.gs`.
+2. Project Settings, Script properties: `TOKEN` = a long random secret.
+3. Deploy, New deployment, Web app: execute as *Me*, access *Anyone*; allow Gmail access.
+4. In `backend/.env`: `GMAIL_SCRIPT_URL=<web app URL>` and `GMAIL_SCRIPT_TOKEN=<secret>`.
+
+## Run multiple Codex coding assistants
+
+Install and sign in to the Codex CLI on the machine that will run the agents.
+From the repository root, run a batch of named tasks:
+
+```powershell
+.\.venv\Scripts\python.exe backend/scripts/launch_codex_agents.py --parallel 2 --task 'review=Review the dashboard API integration' --task 'tests=Identify missing tests for the import workflow'
+```
+
+Each task gets an independent Codex session. The launcher prints the run
+directory under `.local_data/codex-runs/`, with a `reply.md`, `events.jsonl`, and
+`stderr.log` per agent. A batch exits with a failure status if any agent fails.
+The default sandbox is read-only. Add `--write` to give each agent a separate
+Codex-managed Git worktree. Use `--timeout` to cap each session in seconds.
+
+## Office-hours questions
+- **Nils (IT):** Which files are authoritative for PO, goods receipt, and pack-out quantities? How do we recognize a replacement export versus a new event?
+- **Felix (buyer):** Which component or supplier currently gates pack-out? What are the last truck and dock cutoffs for Hamburg?
+- **Maren (procurement):** Which edition shortfall causes the greatest customer cost, what expedite spend is acceptable, and who must approve it?
 
 The default `DATA_DIR=soony-data` is resolved relative to `backend/`. If the data folder is elsewhere, set `DATA_DIR` in `backend/.env` to the folder containing `soony/` and `suppliers/`.
 

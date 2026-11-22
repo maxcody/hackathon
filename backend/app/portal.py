@@ -95,6 +95,9 @@ async def sync(
                 result.unchanged += 1
                 continue
             response = await client.get(f"/api/v1/files/{quote(item['path'])}")
+            if response.status_code != 200 and response.status_code != 401:
+                result.failed.append(item["path"])  # e.g. a proxy blocked it
+                continue
             _check(response)
             if hashlib.sha256(response.content).hexdigest() != item["sha256"]:
                 result.failed.append(item["path"])  # replaced mid-sync; next run

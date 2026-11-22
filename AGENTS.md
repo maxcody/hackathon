@@ -16,6 +16,7 @@ FastAPI + Postgres backend in `backend/`. Async SQLAlchemy 2 (asyncpg), Alembic 
 - Every model change needs an Alembic migration
 - Config goes in `app/config.py` and `backend/.env.example`; never commit `.env`
 - Commit messages: plain imperative summary, no `chore:` prefix, no attribution lines
+- Frontend UI uses Meta Astryx (`frontend/`); follow `frontend/AGENTS.md` and `npx @astryxdesign/cli` before changing screens
 
 ## Code practices
 Read and follow `CODE_PRACTICES.md` at the repo root (DRY, Python docstrings, TSDoc for TypeScript).

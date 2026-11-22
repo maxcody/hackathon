@@ -5,17 +5,17 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
   return {
     plugins: [react()],
-    base: mode === "production" ? "/static/react/" : "/",
+    base: "/static/react/",
     server: {
       host: "127.0.0.1",
       port: 5173,
       strictPort: true,
-      proxy: {
-        "^/(health|openapi\.json|products|components|bom-lines|bom-changes|sheet-rows|notifications|import)(/|$)": {
-          target: env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8000",
-          changeOrigin: true,
-        },
-      },
+      proxy: Object.fromEntries(
+        ["/api", "/import", "/notifications", "/readiness", "/inbox", "/dataset", "/skills"].map((path) => [
+          path,
+          env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8000",
+        ]),
+      ),
     },
     build: {
       outDir: "../backend/app/static/react",

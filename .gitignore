@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+.local_data/
 *.pem
 *.key
 credentials.json
@@ -43,3 +44,6 @@ dist/
 build/
 
 .vscode/
+
+# Astryx theme editor preview pages (regenerated on every theme change)
+frontend/themes/*/*.html
