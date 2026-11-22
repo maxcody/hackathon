@@ -15,6 +15,7 @@ from app.db import engine
 from app.mail_triage import triage_loop
 from app.routers import (
     agent_workspace,
+    dataset,
     imported,
     imports,
     inbox,
@@ -53,6 +54,7 @@ app.include_router(notifications.router)
 app.include_router(solutions.router)
 app.include_router(readiness.router)
 app.include_router(inbox.router)
+app.include_router(dataset.router)
 app.include_router(agent_workspace.router)
 
 

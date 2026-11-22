@@ -1,5 +1,7 @@
 import type {
   AgentSummary,
+  Dataset,
+  DatasetInfo,
   Mailbox,
   MasterImportSummary,
   Notification,
@@ -57,6 +59,16 @@ export function getMailbox(): Promise<Mailbox> {
 export async function reanalyzeEmail(messageId: string): Promise<void> {
   const response = await fetch(`/inbox/analyses?message_id=${encodeURIComponent(messageId)}`, { method: "DELETE" });
   if (!response.ok) throw new Error(`Could not restart the analysis (${response.status}).`);
+}
+
+/** The datasets the Data tab offers. */
+export function listDatasets(): Promise<DatasetInfo[]> {
+  return request("/dataset");
+}
+
+/** Rows and columns of one dataset. */
+export function getDataset(key: string): Promise<Dataset> {
+  return request(`/dataset/${encodeURIComponent(key)}`);
 }
 
 /** Launch readiness per edition and part coverage, as the ERP files state it. */

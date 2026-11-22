@@ -183,3 +183,19 @@ export interface MailAnalysis {
   notification_keys: string[];
   error: string | null;
 }
+
+/** A dataset in the Data tab's list (`/dataset`). */
+export interface DatasetInfo {
+  key: string;
+  title: string;
+  description: string;
+}
+
+/** One table of the Soony data set. */
+export interface Dataset {
+  key: string;
+  title: string;
+  source: string;
+  columns: string[];
+  rows: Array<Record<string, string | number | null>>;
+}
