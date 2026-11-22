@@ -285,7 +285,6 @@ function Dashboard({ notifications, threads }: { notifications: Notification[]; 
   return (
     <Layout
       height="fill"
-      contentWidth={1200}
       content={
         <LayoutContent role="main" id="overview">
           <VStack gap={6} padding={6}>
@@ -408,7 +407,6 @@ function IssuesPage({
   return (
     <Layout
       height="fill"
-      contentWidth={1100}
       content={
         <LayoutContent role="main" id="issues">
           <VStack gap={6} padding={6}>

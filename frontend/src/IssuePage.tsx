@@ -222,7 +222,7 @@ export function IssuePage({
     <Layout
       height="fill"
       header={
-        <VStack gap={3} padding={4} paddingBlockEnd={0}>
+        <VStack gap={3} padding={6} paddingInline={10} paddingBlockEnd={0}>
           <HStack gap={3} vAlign="center">
             <StackItem size="fill">
               <Breadcrumbs label="Location">
@@ -269,7 +269,7 @@ export function IssuePage({
       }
       content={
         <LayoutContent role="main" id="issue-page">
-          <VStack gap={5} padding={4}>
+          <VStack gap={5} padding={6}>
             {error && <Banner status="error" title={error} isDismissable onDismiss={() => setError("")} />}
             {tab === "overview" && (
               <>
