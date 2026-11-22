@@ -9,7 +9,14 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db import engine
-from app.routers import agent_workspace, imported, imports, notifications, solutions
+from app.routers import (
+    agent_workspace,
+    imported,
+    imports,
+    notifications,
+    readiness,
+    solutions,
+)
 
 # Trust the OS certificate store, so portal calls work behind TLS-inspecting proxies
 truststore.inject_into_ssl()
@@ -27,6 +34,7 @@ app.include_router(imported.router)
 app.include_router(imports.router)
 app.include_router(notifications.router)
 app.include_router(solutions.router)
+app.include_router(readiness.router)
 app.include_router(agent_workspace.router)
 
 

@@ -4,6 +4,7 @@ import type { Notification, Severity, Solution } from "./types";
 import { ComposeWindow } from "./EmailDraft";
 import type { Draft } from "./EmailDraft";
 import { AgentsPage } from "./AgentsPage";
+import { ReadinessPanel } from "./ReadinessPanel";
 
 const severityOrder: Severity[] = ["critical", "warning", "info"];
 /** CSS severity classes from the original design, keyed by notification severity. */
@@ -177,6 +178,8 @@ function Dashboard({ notifications, setNotifications }: { notifications: Notific
         {error && <div className="message message-error" role="alert"><Icon name="alert" /><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss">×</button></div>}
         {notice && <div className="message message-success" role="status"><Icon name="check" /><span>{notice}</span><button onClick={() => setNotice(null)} aria-label="Dismiss">×</button></div>}
 
+        <ReadinessPanel notifications={notifications} />
+
         <section className="section-block priority-section" id="notifications" aria-labelledby="notifications-heading"><div className="section-heading"><div><span className="section-number">01</span><div><h2 id="notifications-heading">What needs a human now</h2><p>Mismatches the agents found between the ERP and the paper or supplier side. Check the sources before acting.</p></div></div><span className="priority-total">{openTotal} <small>open</small></span></div>
           <div className="priority-toolbar"><div className="filter-tabs" role="group" aria-label="Filter notifications">{(["all", ...severityOrder] as const).map((item) => <button key={item} className={`filter-tab ${filter === item ? "filter-active" : ""}`} onClick={() => setFilter(item)}>{item === "all" ? "All" : item}<span>{item === "all" ? openTotal : counts[item]}</span></button>)}<button className={`filter-tab ${showResolved ? "filter-active" : ""}`} onClick={() => setShowResolved((value) => !value)}>Resolved</button></div><label className="search-field"><Icon name="search" /><input aria-label="Search notifications" placeholder="Search a part, file or issue" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
           <div className="nc-list">{visible.length ? visible.map((n) => <NotificationCard key={n.id} notification={n} onStatus={setStatus} onChanged={() => { refresh().catch(() => undefined); }} />) : <div className="empty-state"><div className="empty-symbol"><Icon name="check" /></div><strong>{notifications.length ? "No matching notifications" : "No notifications yet"}</strong><p>{notifications.length ? "Try another filter or search term." : "Ask an agent in the Agents tab to check the data; its findings appear here."}</p></div>}</div>
@@ -239,7 +242,7 @@ function NotificationCard({ notification: n, onStatus, onChanged }: { notificati
   const refs = n.data.refs ?? [];
   const kind = (n.data.kind ?? "").replace(/_/g, " ");
   return (
-    <article className={`nc nc-${severity}${status === "resolved" ? " nc-resolved" : ""}`}>
+    <article id={`n-${n.id}`} className={`nc nc-${severity}${status === "resolved" ? " nc-resolved" : ""}`}>
       <header className="nc-head">
         <div className="nc-title">
           <span className="nc-meta"><i className="nc-dot" />{severity}{kind && <> · {kind}</>}</span>

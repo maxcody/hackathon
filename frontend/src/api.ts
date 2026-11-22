@@ -3,6 +3,7 @@ import type {
   MasterImportSummary,
   Notification,
   NotificationData,
+  Readiness,
   SheetImportSummary,
   SyncResult,
   WorkspaceAgent,
@@ -44,6 +45,11 @@ export function sendSolutionEmail(
   email: { to: string[]; cc: string[]; subject: string; body: string; approved_by?: string },
 ): Promise<Notification> {
   return request(`/notifications/${notificationId}/solutions/${index}/send`, json("POST", email));
+}
+
+/** Launch readiness per edition and part coverage, as the ERP files state it. */
+export function getReadiness(): Promise<Readiness> {
+  return request("/readiness");
 }
 
 /** Download new or changed portal files into the backend's data folder. */
