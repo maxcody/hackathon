@@ -1,5 +1,6 @@
 import type {
   AgentSummary,
+  Mailbox,
   MasterImportSummary,
   Notification,
   NotificationData,
@@ -45,6 +46,11 @@ export function sendSolutionEmail(
   email: { to: string[]; cc: string[]; subject: string; body: string; approved_by?: string },
 ): Promise<Notification> {
   return request(`/notifications/${notificationId}/solutions/${index}/send`, json("POST", email));
+}
+
+/** Sent (and, once connected, received) emails with delivery status. */
+export function getMailbox(): Promise<Mailbox> {
+  return request("/inbox");
 }
 
 /** Launch readiness per edition and part coverage, as the ERP files state it. */

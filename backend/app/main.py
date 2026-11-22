@@ -13,6 +13,7 @@ from app.routers import (
     agent_workspace,
     imported,
     imports,
+    inbox,
     notifications,
     readiness,
     solutions,
@@ -35,6 +36,7 @@ app.include_router(imports.router)
 app.include_router(notifications.router)
 app.include_router(solutions.router)
 app.include_router(readiness.router)
+app.include_router(inbox.router)
 app.include_router(agent_workspace.router)
 
 

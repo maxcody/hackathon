@@ -130,3 +130,26 @@ export interface Readiness {
   parts: PartCoverage[];
   sources: string[];
 }
+
+/** One email in the inbox tab (`/inbox`). */
+export interface MailMessage {
+  direction: "out" | "in";
+  message_id: string;
+  at: string;
+  sender: string;
+  to: string[];
+  cc: string[];
+  subject: string;
+  body: string;
+  /** Brevo delivery status of outgoing mail, e.g. "delivered". */
+  status: string | null;
+  status_at: string | null;
+}
+
+/** Everything the inbox tab shows. */
+export interface Mailbox {
+  messages: MailMessage[];
+  sender: string | null;
+  status_source: string | null;
+  incoming_configured: boolean;
+}

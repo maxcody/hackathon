@@ -5,6 +5,7 @@ import { ComposeWindow } from "./EmailDraft";
 import type { Draft } from "./EmailDraft";
 import { AgentsPage } from "./AgentsPage";
 import { ReadinessPanel } from "./ReadinessPanel";
+import { InboxPage } from "./InboxPage";
 
 const severityOrder: Severity[] = ["critical", "warning", "info"];
 /** CSS severity classes from the original design, keyed by notification severity. */
@@ -33,7 +34,7 @@ function isOpen(notification: Notification): boolean {
 function Icon({ name }: { name: string }) {
   const icons: Record<string, string> = {
     grid: "▦", file: "▤", clock: "◷", refresh: "↻", check: "✓",
-    search: "⌕", spark: "✳", alert: "!",
+    search: "⌕", spark: "✳", alert: "!", mail: "✉",
   };
   return <span aria-hidden="true" className="icon">{icons[name] ?? "·"}</span>;
 }
@@ -53,7 +54,7 @@ export function App() {
   return (
     <div className="app-shell">
       <Sidebar location={location} openCount={notifications?.filter(isOpen).length ?? null} />
-      {location === "#agents" ? <AgentsPage /> : <Dashboard notifications={notifications} setNotifications={setNotifications} />}
+      {location === "#agents" ? <AgentsPage /> : location === "#inbox" ? <InboxPage /> : <Dashboard notifications={notifications} setNotifications={setNotifications} />}
     </div>
   );
 }
@@ -64,6 +65,7 @@ function Sidebar({ location, openCount }: { location: string; openCount: number 
     ["#overview", "grid", "Overview"],
     ["#notifications", "alert", "Notifications"],
     ["#agents", "spark", "Agents"],
+    ["#inbox", "mail", "Inbox"],
   ];
   return (
     <aside className="sidebar">
@@ -73,7 +75,7 @@ function Sidebar({ location, openCount }: { location: string; openCount: number 
       <div className="side-caption nav-caption">LAUNCH CONTROL</div>
       <nav className="main-nav" aria-label="Main navigation">
         {links.map(([href, icon, label]) => (
-          <a key={href} className={`nav-link${location === href ? " selected" : ""}`} href={href} aria-label={label} aria-current={location === href ? (href === "#agents" ? "page" : "location") : undefined}>
+          <a key={href} className={`nav-link${location === href ? " selected" : ""}`} href={href} aria-label={label} aria-current={location === href ? (href === "#agents" || href === "#inbox" ? "page" : "location") : undefined}>
             <Icon name={icon} /> {label}
             {href === "#notifications" && openCount !== null && <span className="nav-count">{openCount}</span>}
           </a>
