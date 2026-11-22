@@ -267,9 +267,7 @@ def _notices() -> tuple[str, list[dict]]:
                 "type": (
                     "price list"
                     if "price" in path.name.lower()
-                    else "news"
-                    if rel.startswith("soony/news")
-                    else "notice"
+                    else "news" if rel.startswith("soony/news") else "notice"
                 ),
             }
         )

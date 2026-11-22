@@ -401,12 +401,16 @@ def format_sources(sources: list[dict]) -> str:
     for s in sources:
         facts = [
             f"share {s['share']:.0%}" if s.get("share") is not None else "",
-            f"{s['unit_price']} {s['currency']}"
-            if s.get("unit_price") is not None
-            else "",
-            f"lead {s['lead_time_days']} d"
-            if s.get("lead_time_days") is not None
-            else "",
+            (
+                f"{s['unit_price']} {s['currency']}"
+                if s.get("unit_price") is not None
+                else ""
+            ),
+            (
+                f"lead {s['lead_time_days']} d"
+                if s.get("lead_time_days") is not None
+                else ""
+            ),
             f"MOQ {s['moq']}" if s.get("moq") is not None else "",
             "NEEDS PP-07 APPROVAL" if s["needs_approval"] else "",
         ]
