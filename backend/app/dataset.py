@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.data import data_root, read_csv
 from app.readiness import _qty, compute
+from app.sourcing import supplier_folders
 
 OPEN_PO = {"open", "awaiting_approval"}  # PO lines still to be delivered
 RECENT_DAYS = 21  # receipts shown: the last three weeks before launch
@@ -114,13 +115,7 @@ def _latest(pattern: str) -> Path | None:
 
 def _profiles() -> list[dict[str, str]]:
     """Every supplier profile row."""
-    rows = []
-    for path in sorted((data_root() / "suppliers").glob("*/profile.csv")):
-        with path.open(encoding="utf-8-sig") as f:
-            row = next(csv.DictReader(f), None)
-        if row:
-            rows.append(row)
-    return rows
+    return [s.profile for s in supplier_folders()]
 
 
 def _launch_date() -> str:
@@ -230,12 +225,9 @@ def _part_suppliers() -> dict[str, list[str]]:
 
 def _suppliers() -> tuple[str, list[dict]]:
     rows = []
-    for p in _profiles():
-        folder = next((data_root() / "suppliers").glob(f"{p['supplier_id']}_*"))
-        parts = []
-        if (folder / "components.csv").exists():
-            with (folder / "components.csv").open(encoding="utf-8-sig") as f:
-                parts = [r["component_id"] for r in csv.DictReader(f)]
+    for s in supplier_folders():
+        p = s.profile
+        parts = [r["component_id"] for r in s.components]
         rows.append(
             {
                 "supplier_id": p["supplier_id"],
@@ -275,7 +267,9 @@ def _notices() -> tuple[str, list[dict]]:
                 "type": (
                     "price list"
                     if "price" in path.name.lower()
-                    else "news" if rel.startswith("soony/news") else "notice"
+                    else "news"
+                    if rel.startswith("soony/news")
+                    else "notice"
                 ),
             }
         )

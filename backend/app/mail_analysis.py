@@ -40,6 +40,9 @@ class MailAnalysis(BaseModel):
     risks: str = ""
     next_step: str = ""
     notification_keys: list[str] = []
+    # What the supplier answered; "declined"/"partial" makes the agent draft plan B
+    outcome: Literal["confirmed", "partial", "declined", "question", "other"] = "other"
+    supplier_id: str = ""
     error: str | None = None
 
 

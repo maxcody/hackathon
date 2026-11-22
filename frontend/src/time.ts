@@ -22,3 +22,10 @@ export function timeToLaunch(): string {
   if (minutes <= 0) return "launched";
   return `${Math.floor(minutes / 60)} h ${minutes % 60} min left`;
 }
+
+/** Compact time left for the collapsed sidebar, e.g. "10h" or "45m". */
+export function shortTimeToLaunch(): string {
+  const minutes = Math.round((LAUNCH.getTime() - Date.now()) / 60000);
+  if (minutes <= 0) return "Live";
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}h` : `${minutes}m`;
+}

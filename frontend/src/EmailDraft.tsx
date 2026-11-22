@@ -34,7 +34,7 @@ const OPEN_BLOCK = /```email-draft[\s\S]*$/;
 export type Segment = { kind: "text"; text: string } | { kind: "draft"; draft: Draft } | { kind: "drafting" };
 
 /** Normalize an address list that may arrive as a string or an array. */
-function addresses(value: unknown): string[] {
+export function addresses(value: unknown): string[] {
   const items = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[,;]/) : [];
   return items.map((item) => String(item).trim()).filter(Boolean);
 }
@@ -128,10 +128,10 @@ export function sameDraft(a: Draft, b: Draft): boolean {
 }
 
 /** One header line of a mail window (To, Cc, Subject): a fixed label column, then the value. */
-function mailLine(label: string, value: ReactNode, end?: ReactNode) {
+export function mailLine(label: string, value: ReactNode, end?: ReactNode) {
   return (
     <>
-      <HStack gap={3} vAlign="center" paddingBlock={2}>
+      <HStack gap={3} vAlign="center" paddingBlock={1.5}>
         <VStack width={64}>
           <Text color="secondary">{label}</Text>
         </VStack>
@@ -144,16 +144,16 @@ function mailLine(label: string, value: ReactNode, end?: ReactNode) {
 }
 
 /** A header line's value: an input while editing, plain text once sent. */
-function mailField(editable: boolean, label: string, value: string, set: (v: string) => void, weight?: "semibold") {
+export function mailField(editable: boolean, label: string, value: string, set: (v: string) => void, weight?: "semibold") {
   return editable ? (
-    <TextInput label={label} isLabelHidden value={value} onChange={set} />
+    <TextInput label={label} isLabelHidden size="sm" value={value} onChange={set} />
   ) : (
     <Text weight={weight}>{value || "–"}</Text>
   );
 }
 
 /** A plain-text email body: paragraphs on blank lines, single line breaks kept. */
-function MailBody({ text }: { text: string }) {
+export function MailBody({ text }: { text: string }) {
   return (
     <VStack gap={3}>
       {text.split(/\n\s*\n/).map((paragraph, index) => (

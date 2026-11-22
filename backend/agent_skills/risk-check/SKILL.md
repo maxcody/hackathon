@@ -143,7 +143,13 @@ Each solution has a `kind`:
   confirmation. Write it as a decision, not an inquiry: when the data shows an
   offer or stock is available and the time is short, place the order or request
   ("please load and ship 8,000 ... today"), so one click on Send sets it in
-  motion.
+  motion. Write it like a real business email, not a single block: a greeting
+  with the contact's first name ("Dear Rohan,"); one short paragraph on what
+  happened (with PO, part, quantity); the requests as a numbered list when
+  there is more than one; one paragraph with the deadline and why it matters
+  (e.g. "to pack them before the 20:00 launch") and the request for written
+  confirmation; then "Thank you," and the signature on its own lines. Separate
+  paragraphs with blank lines.
 - `claim`: complaint or credit note for wrong, short or rejected goods; attach
   an `email` the same way when it goes to a supplier.
 - `internal`: someone at Soony acts (book a pickup or dock slot, recount stock,
@@ -171,6 +177,27 @@ Rules from `soony/context/approval_policy_*`:
   Supplier Quality Lead
 - note when the responsible role is vacant (e.g. Category Lead for
   Collector's Items) and who covers it
+
+### Alternative suppliers
+
+One supplier often cannot close a gap alone. For every shortage or late
+delivery of a part, call `sourcing_options` with its component id: it ranks
+the primary supplier, listed second sources, then same-category suppliers
+that do not make the part yet. The issue line from `list_notifications` shows
+`suppliers: ...` already asked; never propose a supplier marked `declined`.
+
+- Critical and less than 24 hours to launch: ask the primary and the best
+  second source at the same time. Two `email` solutions, the backup with
+  `stage: "parallel"`, quantities split so together they cover the gap.
+- Otherwise: the primary first (`stage: "now"`), the second source as plan B
+  (`stage: "if_declined"`) with its own finished draft.
+- Only one supplier lists the part: add a same-category supplier as plan B
+  (`kind: "decision"` or `email` asking for a sample and capacity); it is not
+  qualified, so `approval` names the PP-07 role and a sample is required.
+- A conditional supplier (e.g. second source on conditional release) always
+  needs `approval` per PP-07.
+- Set `supplier_id` on every supplier solution, and use each supplier's own
+  contact, language, price and lead time from `sourcing_options`.
 
 Never send email during a risk check: the dashboard shows each email solution
 in a popup where a person reviews, approves and sends it. Never propose

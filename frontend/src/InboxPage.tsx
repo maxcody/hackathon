@@ -14,12 +14,13 @@ import { Card } from "@astryxdesign/core/Card";
 import { Section } from "@astryxdesign/core/Section";
 import { Timestamp } from "@astryxdesign/core/Timestamp";
 import { Icon } from "@astryxdesign/core/Icon";
-import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/outline";
+import { Spinner } from "@astryxdesign/core/Spinner";
 import { getMailbox, reanalyzeEmail } from "./api";
-import type { MailMessage, Mailbox } from "./types";
+import type { MailMessage, Mailbox, Notification } from "./types";
 
 const REFRESH_MS = 30 * 1000;
-const STATUS_LABEL: Record<string, string> = {
+export const STATUS_LABEL: Record<string, string> = {
   requests: "Accepted",
   deferred: "Delayed",
   delivered: "Delivered",
@@ -32,7 +33,7 @@ const STATUS_LABEL: Record<string, string> = {
   error: "Error",
   spam: "Marked as spam",
 };
-const STATUS_VARIANT: Record<string, "success" | "warning" | "error" | "neutral"> = {
+export const STATUS_VARIANT: Record<string, "success" | "warning" | "error" | "neutral"> = {
   delivered: "success",
   opened: "success",
   clicks: "success",
@@ -41,7 +42,7 @@ const STATUS_VARIANT: Record<string, "success" | "warning" | "error" | "neutral"
 };
 
 /** Short time label: today shows the time, older mail the date. */
-function when(value: string): string {
+export function when(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return value;
   const today = new Date().toDateString() === date.toDateString();
@@ -54,17 +55,28 @@ function when(value: string): string {
 function AnalysisChip({ message }: { message: MailMessage }) {
   if (message.direction !== "in") return null;
   const status = message.analysis?.status;
-  const [variant, label]: ["success" | "error" | "warning", string] =
-    status === "done"
-      ? ["success", "Analyzed"]
-      : status === "failed"
-        ? ["error", "Analysis failed"]
-        : ["warning", "Analyzing…"];
-  return <Badge label={label} variant={variant} />;
+  // Quiet status line: only the small icon carries color, and a live spinner while the agent works
+  const icon =
+    status === "done" ? (
+      <Icon icon={CheckCircleIcon} size="xsm" color="success" />
+    ) : status === "failed" ? (
+      <Icon icon={ExclamationCircleIcon} size="xsm" color="error" />
+    ) : (
+      <Spinner size="sm" shade="subtle" aria-label="Analyzing" />
+    );
+  const label = status === "done" ? "Analyzed" : status === "failed" ? "Analysis failed" : "Analyzing";
+  return (
+    <HStack gap={1} vAlign="center">
+      {icon}
+      <Text type="supporting" color="secondary">
+        {label}
+      </Text>
+    </HStack>
+  );
 }
 
 /** The agent's reading of a received mail. */
-function AnalysisPanel({ message, onRetry }: { message: MailMessage; onRetry: () => void }) {
+export function AnalysisPanel({ message, onRetry }: { message: MailMessage; onRetry: () => void }) {
   const [busy, setBusy] = useState(false);
   const analysis = message.analysis;
   async function retry() {
@@ -173,23 +185,35 @@ function StatusChip({ message }: { message: MailMessage }) {
   );
 }
 
+/** The last mailbox loaded in this browser session; shown immediately when the tab reopens. */
+let lastMailbox: Mailbox | null = null;
+
 /** Inbox tab: sent mail with delivery status, and received mail once connected. */
-export function InboxPage() {
-  const [box, setBox] = useState<Mailbox | null>(null);
+/** Unique id of a mailbox row. */
+function rowId(m: MailMessage): string {
+  return `${m.direction}:${m.message_id}`;
+}
+
+/** Inbox of sent and received mail; received mail links to the issues the agent tied it to. */
+export function InboxPage({ notifications = [] }: { notifications?: Notification[] }) {
+  // Start from the last mailbox this session loaded, so reopening the tab shows mail at once
+  const [box, setBox] = useState<Mailbox | null>(lastMailbox);
   const [error, setError] = useState("");
-  const [folder, setFolder] = useState<"all" | "in" | "out">("all");
+  const [folder, setFolder] = useState<"all" | "in" | "out">("in");
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  /** Load the mailbox; `refresh` (the Refresh button) also skips the backend's short cache. */
+  const load = useCallback(async (refresh = false) => {
+    if (refresh) setLoading(true);
     try {
-      setBox(await getMailbox());
+      lastMailbox = await getMailbox(refresh);
+      setBox(lastMailbox);
       setError("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not load the inbox.");
     } finally {
-      setLoading(false);
+      if (refresh) setLoading(false);
     }
   }, []);
 
@@ -203,7 +227,9 @@ export function InboxPage() {
     () => (box?.messages ?? []).filter((m) => folder === "all" || m.direction === folder),
     [box, folder],
   );
-  const open = messages.find((m) => m.message_id === selected) ?? messages[0];
+  // A mail you send to yourself is listed as sent and received with the same Message-ID,
+  // so rows are identified by direction plus Message-ID.
+  const open = messages.find((m) => rowId(m) === selected) ?? messages[0];
   const original = open?.in_reply_to
     ? box?.messages.find((m) => m.message_id === open.in_reply_to)
     : undefined;
@@ -226,9 +252,9 @@ export function InboxPage() {
             <Heading level={1}>Inbox</Heading>
             <StackItem size="fill">
               <TabList value={folder} onChange={(value) => setFolder(value as "all" | "in" | "out")} hasDivider>
-                <Tab value="all" label={`All (${counts.all})`} />
                 <Tab value="in" label={`Received (${counts.in})`} />
                 <Tab value="out" label={`Sent (${counts.out})`} />
+                <Tab value="all" label={`All (${counts.all})`} />
               </TabList>
             </StackItem>
             {box?.sender && (
@@ -241,7 +267,7 @@ export function InboxPage() {
               variant="secondary"
               icon={<Icon icon={ArrowPathIcon} size="sm" />}
               isLoading={loading}
-              onClick={() => void load()}
+              onClick={() => void load(true)}
             />
           </HStack>
           {error && <Banner status="error" title={error} />}
@@ -264,7 +290,7 @@ export function InboxPage() {
             <List density="balanced" hasDividers>
               {messages.map((m) => (
                 <ListItem
-                  key={m.message_id}
+                  key={rowId(m)}
                   align="start"
                   label={
                     <Text weight="semibold" maxLines={1}>
@@ -292,8 +318,8 @@ export function InboxPage() {
                       <AnalysisChip message={m} />
                     </VStack>
                   }
-                  isSelected={open?.message_id === m.message_id}
-                  onClick={() => setSelected(m.message_id)}
+                  isSelected={!!open && rowId(open) === rowId(m)}
+                  onClick={() => setSelected(rowId(m))}
                 />
               ))}
             </List>
@@ -352,6 +378,15 @@ export function InboxPage() {
                 </VStack>
               </HStack>
               <Divider />
+              {/* Issues this mail belongs to: open the issue's conversation to reply there */}
+              {notifications
+                .filter((n) => n.data.key && open.analysis?.notification_keys.includes(n.data.key))
+                .map((n) => (
+                  <HStack key={n.id} gap={2} vAlign="center">
+                    <Text type="supporting" color="secondary">Issue</Text>
+                    <Link href={`#n-${n.id}/conversation`}>{n.data.title || n.attr}</Link>
+                  </HStack>
+                ))}
               {open.direction === "in" && <AnalysisPanel message={open} onRetry={() => void load()} />}
               {/* The body as written: paragraphs on blank lines, single line breaks kept */}
               <VStack gap={4}>

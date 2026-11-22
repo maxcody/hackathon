@@ -22,6 +22,8 @@ export interface NotificationData {
   details?: string;
   refs?: string[];
   solutions?: Solution[];
+  /** Suppliers contacted for this issue and where each stands. */
+  suppliers?: SupplierState[];
   [field: string]: unknown;
 }
 
@@ -49,6 +51,39 @@ export interface Solution {
   sent_at?: string;
   approved_by?: string | null;
   sent_email?: Omit<SolutionEmail, "translation">;
+  /** Supplier the solution goes to, e.g. "SUP-0011". */
+  supplier_id?: string;
+  /** now; parallel: backup asked at the same time; if_declined: plan B. */
+  stage?: "now" | "parallel" | "if_declined";
+}
+
+/** Where one supplier stands on an issue (`data.suppliers`). */
+export interface SupplierState {
+  supplier_id: string;
+  name: string;
+  state: "asked" | "confirmed" | "partial" | "declined" | "no_answer";
+  quantity?: string;
+  note?: string;
+  at?: string;
+}
+
+/** A supplier that can (or might) supply a part (`/sourcing/{component}`). */
+export interface Source {
+  supplier_id: string;
+  name: string;
+  role: "primary" | "second_source" | "same_category";
+  contact_name: string;
+  contact_email: string;
+  preferred_language: string;
+  qualification_status: string;
+  share: number | null;
+  unit_price: number | null;
+  currency: string;
+  lead_time_days: number | null;
+  moq: number | null;
+  note: string;
+  needs_approval: boolean;
+  notices: string[];
 }
 
 /** One mismatch between the ERP and the customer side (`/notifications`). */
@@ -191,6 +226,9 @@ export interface MailAnalysis {
   risks: string;
   next_step: string;
   notification_keys: string[];
+  /** What the supplier answered. */
+  outcome?: "confirmed" | "partial" | "declined" | "question" | "other";
+  supplier_id?: string;
   error: string | null;
 }
 
@@ -252,4 +290,12 @@ export interface SkillRun {
   finished_at: string | null;
   summary: string;
   error: string | null;
+}
+
+/** Who wrote last in an issue's email thread (`/notifications/threads`). */
+export interface ThreadSummary {
+  count: number;
+  /** "out": waiting for the supplier; "in": the supplier answered. */
+  last_direction: "out" | "in";
+  last_at: string;
 }
