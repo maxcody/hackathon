@@ -27,7 +27,7 @@ import {
   supplierState,
 } from "./issues";
 import { IssueConversation, threadState } from "./IssueThread";
-import { FactGrid, SourceFiles } from "./IssueCard";
+import { ComparisonBar, FactGrid, SourceFiles } from "./IssueCard";
 import { localTime } from "./time";
 
 export type IssueTab = "overview" | "solutions" | "conversation";
@@ -279,6 +279,7 @@ export function IssuePage({
                     {n.data.headline && <Text weight="medium">{n.data.headline}</Text>}
                     {/* The agent's key figures when it gave them, else the ERP-vs-actual comparison */}
                     {n.data.facts?.length ? <FactGrid facts={n.data.facts} /> : <Comparison n={n} />}
+                    <ComparisonBar n={n} />
                     {n.data.details && <Text>{n.data.details}</Text>}
                     <SourceFiles paths={n.data.refs ?? []} />
                   </VStack>
