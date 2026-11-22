@@ -1,19 +1,26 @@
-"""Read-only tables of the Soony data folder for the dashboard's Data tab.
+"""Read-only, linked tables of the Soony data folder for the dashboard's Data tab.
 
-Each dataset is a list of rows with fixed columns, read straight from the files
-in ``DATA_DIR`` (newest version where there are several). Supplier ids get the
-supplier's name appended, so the tables read without a lookup.
+Each dataset has a fixed column spec: a label, a ``kind`` that tells the
+dashboard how to format the value (date, quantity, money, status, ...) and, for
+ids, which dataset it links to (part, supplier, PO, shipment). Rows keep the raw
+ids so links can filter the target table; ``Lookups`` give the names to show
+next to them and the documents (scans, order confirmations) behind them.
 """
 
 import csv
+import re
 from collections.abc import Callable
+from datetime import date, timedelta
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel
 
 from app.data import data_root, read_csv
-from app.readiness import _qty, _tables
+from app.readiness import _qty, compute
 
+OPEN_PO = {"open", "awaiting_approval"}  # PO lines still to be delivered
+RECENT_DAYS = 21  # receipts shown: the last three weeks before launch
 DOCUMENT_FOLDERS = (
     "suppliers/*/notices",
     "suppliers/*/order_confirmations",
@@ -24,6 +31,47 @@ DOCUMENT_FOLDERS = (
     "soony/news",
 )
 
+Kind = Literal[
+    "text",
+    "qty",
+    "money",
+    "date",
+    "status",
+    "flag",
+    "balance",
+    "part",
+    "supplier",
+    "po",
+    "shipment",
+    "delivery_note",
+    "file",
+]
+# Which dataset (and column) a linkable kind opens, filtered to the clicked id
+LINKS: dict[str, tuple[str, str]] = {
+    "part": ("parts", "component_id"),
+    "supplier": ("suppliers", "supplier_id"),
+    "po": ("purchase_orders", "po_number"),
+    "shipment": ("shipments", "shipment_id"),
+}
+
+
+class Column(BaseModel):
+    """How the dashboard shows one column."""
+
+    key: str
+    label: str
+    kind: Kind = "text"
+    multi: bool = False  # several ids separated by "|"
+
+
+class Related(BaseModel):
+    """A link from each row to rows of another dataset with the same id."""
+
+    label: str
+    dataset: str
+    column: str  # filter column in the target dataset
+    value_from: str  # column of this row that holds the id
+
 
 class Dataset(BaseModel):
     """One table for the Data tab."""
@@ -31,7 +79,8 @@ class Dataset(BaseModel):
     key: str
     title: str
     source: str
-    columns: list[str]
+    columns: list[Column]
+    related: list[Related] = []
     rows: list[dict[str, str | int | float | None]]
 
 
@@ -43,25 +92,13 @@ class DatasetInfo(BaseModel):
     description: str
 
 
-def _supplier_names() -> dict[str, str]:
-    """Map supplier ids to names from ``suppliers/*/profile.csv``."""
-    names = {}
-    for profile in (data_root() / "suppliers").glob("*/profile.csv"):
-        with profile.open(encoding="utf-8-sig") as f:
-            row = next(csv.DictReader(f), None)
-        if row:
-            names[row["supplier_id"]] = row.get("name") or row["supplier_id"]
-    return names
+class Lookups(BaseModel):
+    """Names and documents behind the ids in the tables."""
 
-
-def _with_suppliers(rows: list[dict]) -> list[dict]:
-    """Append the supplier name to every ``supplier_id`` value."""
-    names = _supplier_names()
-    for row in rows:
-        sid = row.get("supplier_id")
-        if sid in names:
-            row["supplier_id"] = f"{sid} · {names[sid]}"
-    return rows
+    parts: dict[str, str]  # component or product id -> description
+    suppliers: dict[str, str]  # supplier id -> name
+    documents: dict[str, list[str]]  # delivery note or PO number -> file paths
+    open_orders: list[str]  # PO numbers listed under "Open orders"
 
 
 def _csv(rel: str) -> list[dict]:
@@ -75,31 +112,39 @@ def _latest(pattern: str) -> Path | None:
     return files[-1] if files else None
 
 
-def _stock() -> tuple[str, list[dict]]:
-    update = _latest("erp/stock_update_*.xlsx")
-    if update:
-        for title, rows in _tables(update).values():
-            if rows and "Used today" in rows[0]:
-                return f"{update.name} · {title}", [
-                    {**r, "Qty": _qty(r.get("Qty"))} for r in rows if r.get("Material")
-                ]
-    return "erp/stock_snapshot.csv", _csv("erp/stock_snapshot.csv")
+def _profiles() -> list[dict[str, str]]:
+    """Every supplier profile row."""
+    rows = []
+    for path in sorted((data_root() / "suppliers").glob("*/profile.csv")):
+        with path.open(encoding="utf-8-sig") as f:
+            row = next(csv.DictReader(f), None)
+        if row:
+            rows.append(row)
+    return rows
 
 
-def _packed() -> tuple[str, list[dict]]:
-    update = _latest("erp/stock_update_*.xlsx")
-    if update:
-        for title, rows in _tables(update).values():
-            if rows and "Packed today" in rows[0]:
-                return f"{update.name} · {title}", [
-                    {**r, "Qty": _qty(r.get("Qty"))} for r in rows if r.get("Material")
-                ]
-    return "erp/packout_log.csv", _csv("erp/packout_log.csv")
+def _launch_date() -> str:
+    """The launch date of the products with a day-one quantity."""
+    dates = [p["launch_date"] for p in _csv("master/products.csv") if p["day_one_qty"]]
+    return min(dates) if dates else "9999-12-31"
 
 
 def _shipments() -> tuple[str, list[dict]]:
-    rows = sorted(_csv("erp/open_shipments.csv"), key=lambda r: r["eta"])
-    return "erp/open_shipments.csv", _with_suppliers(rows)
+    launch = _launch_date()
+    rows = [
+        {**r, "before_launch": "Y" if r["eta"][:10] <= launch else "N"}
+        for r in _csv("erp/open_shipments.csv")
+        if r.get("status") != "delivered"
+    ]
+    return "erp/open_shipments.csv (not yet delivered)", sorted(
+        rows, key=lambda r: r["eta"]
+    )
+
+
+def _money(row: dict) -> str:
+    """Unit price with its currency, e.g. ``2.10 EUR``."""
+    price, currency = row.get("unit_price"), row.get("currency")
+    return f"{price} {currency}".strip() if price else ""
 
 
 def _purchase_orders() -> tuple[str, list[dict]]:
@@ -108,149 +153,292 @@ def _purchase_orders() -> tuple[str, list[dict]]:
     path = _latest("erp/purchase_orders_2*.csv")
     if not path:
         return "", []
-    rows = read_csv(f"erp/{path.name}")
-    rows.sort(key=lambda r: r.get("promised_date") or "", reverse=True)
-    return f"erp/{path.name}", _with_suppliers(rows)
+    launch_parts = {p.component_id for p in compute().parts}
+    rows = [
+        {**r, "quantity": _qty(r["quantity"]), "unit_price": _money(r)}
+        for r in read_csv(f"erp/{path.name}")
+        if r["status"] in OPEN_PO and r["material_id"] in launch_parts
+    ]
+    rows.sort(key=lambda r: r.get("promised_date") or "")
+    return f"erp/{path.name} (open lines for launch parts)", rows
 
 
 def _receipts() -> tuple[str, list[dict]]:
-    rows = _csv("erp/goods_receipts.csv") + _csv("erp/goods_receipts_update.csv")
+    rows = [
+        {
+            **r,
+            "qty_ordered": _qty(r["qty_ordered"]),
+            "qty_received": _qty(r["qty_received"]),
+        }
+        for r in _csv("erp/goods_receipts.csv") + _csv("erp/goods_receipts_update.csv")
+    ]
+    since = (
+        date.fromisoformat(_launch_date()) - timedelta(days=RECENT_DAYS)
+    ).isoformat()
+    rows = [r for r in rows if r["gr_date"] >= since]
     rows.sort(key=lambda r: r["gr_date"], reverse=True)
-    return "erp/goods_receipts.csv + goods_receipts_update.csv", _with_suppliers(rows)
+    return f"erp/goods_receipts*.csv (since {since})", rows
 
 
 def _parts() -> tuple[str, list[dict]]:
-    uses: dict[str, list[str]] = {}
-    for line in _csv("master/bom.csv"):
-        uses.setdefault(line["child_id"], []).append(
-            f"{line['parent_id']} ×{line['qty_per']}"
-        )
-    changes = {
-        (u["component_id"], u["field"]): f"{u['old']} → {u['new']}"
-        for path in sorted(
-            (data_root() / "soony/master").glob("components_update_*.csv")
-        )
-        for u in read_csv(f"master/{path.name}")
+    """Launch parts: what is still needed against today's stock (see readiness)."""
+    rules = {
+        r["child_id"]: f"rev {r['rev_old']} → {r['rev_new']}"
+        + ("" if r["use_up_old_rev"] == "Y" else ", old stock not allowed")
+        for path in sorted((data_root() / "soony/master").glob("bom_delta_*.csv"))
+        for r in read_csv(f"master/{path.name}")
     }
-    rows = []
-    for c in _csv("master/components.csv"):
-        rev = changes.get((c["component_id"], "drawing_rev"))
-        rows.append(
-            {
-                "component_id": c["component_id"],
-                "description": c["description"],
-                "critical": c["critical"],
-                "drawing_rev": rev or c["drawing_rev"],
-                "used_in": ", ".join(uses.get(c["component_id"], [])),
-            }
-        )
-    return "master/components.csv + bom.csv + components_update_*.csv", rows
+    critical = {c["component_id"]: c["critical"] for c in _csv("master/components.csv")}
+    for path in sorted((data_root() / "soony/master").glob("components_update_*.csv")):
+        for u in read_csv(f"master/{path.name}"):
+            if u["field"] == "critical":  # today's master data changes win
+                critical[u["component_id"]] = u["new"]
+    ready = compute()
+    supplier_ids = _part_suppliers()
+    rows = [
+        {
+            "component_id": p.component_id,
+            "used_in": "|".join(p.used_in),
+            "critical": critical.get(p.component_id, ""),
+            "need": None if p.fitted_into else p.need,
+            "stock": None if p.fitted_into else p.stock,
+            "balance": None if p.fitted_into else p.balance,
+            "revision": rules.get(p.component_id, ""),
+            "note": (
+                f"fitted into {p.fitted_into} by the supplier" if p.fitted_into else ""
+            ),
+            "suppliers": "|".join(supplier_ids.get(p.component_id, [])),
+        }
+        for p in ready.parts
+    ]
+    return f"master + stock as of {ready.snapshot_date} (ERP book figures)", rows
 
 
-def _bom_changes() -> tuple[str, list[dict]]:
-    path = _latest("master/bom_delta_*.csv")
-    return (
-        (f"master/{path.name}", read_csv(f"master/{path.name}")) if path else ("", [])
-    )
+def _part_suppliers() -> dict[str, list[str]]:
+    """Supplier ids per component from ``suppliers/*/components.csv``."""
+    found: dict[str, list[str]] = {}
+    for profile in _profiles():
+        for folder in (data_root() / "suppliers").glob(f"{profile['supplier_id']}_*"):
+            if (folder / "components.csv").exists():
+                with (folder / "components.csv").open(encoding="utf-8-sig") as f:
+                    for r in csv.DictReader(f):
+                        found.setdefault(r["component_id"], []).append(
+                            profile["supplier_id"]
+                        )
+    return found
 
 
 def _suppliers() -> tuple[str, list[dict]]:
     rows = []
-    for folder in sorted((data_root() / "suppliers").glob("*")):
-        profile, parts = folder / "profile.csv", folder / "components.csv"
-        if not profile.exists():
-            continue
-        with profile.open(encoding="utf-8-sig") as f:
-            p = next(csv.DictReader(f), {})
-        listed = []
-        if parts.exists():
-            with parts.open(encoding="utf-8-sig") as f:
-                listed = [
-                    f"{r['component_id']} ({float(r['share'] or 0):.0%}"
-                    f"{', primary' if r.get('primary') == 'Y' else ''}, "
-                    f"{r.get('lead_time_days')} d)"
-                    for r in csv.DictReader(f)
-                ]
+    for p in _profiles():
+        folder = next((data_root() / "suppliers").glob(f"{p['supplier_id']}_*"))
+        parts = []
+        if (folder / "components.csv").exists():
+            with (folder / "components.csv").open(encoding="utf-8-sig") as f:
+                parts = [r["component_id"] for r in csv.DictReader(f)]
         rows.append(
             {
-                "supplier_id": p.get("supplier_id"),
-                "name": p.get("name"),
+                "supplier_id": p["supplier_id"],
                 "country": p.get("country"),
                 "language": p.get("preferred_language"),
-                "status": f"{p.get('status')} / {p.get('qualification_status')}",
-                "contact": f"{p.get('contact_name')} <{p.get('contact_email')}>",
+                "status": p.get("status"),
+                "qualification": p.get("qualification_status"),
+                "contact": p.get("contact_name"),
+                "email": p.get("contact_email"),
                 "phone": p.get("phone"),
-                "parts": "; ".join(listed),
+                "parts": "|".join(parts),
                 "notes": p.get("notes"),
             }
         )
     return "suppliers/*/profile.csv + components.csv", rows
 
 
-def _documents() -> tuple[str, list[dict]]:
+def _notices() -> tuple[str, list[dict]]:
+    """Supplier notices and market news: early warnings."""
     root = data_root()
-    seen, rows = set(), []
+    paths = sorted(root.glob("suppliers/*/notices/*")) + sorted(
+        root.glob("soony/news/*")
+    )
+    rows = []
+    for path in paths:
+        rel = path.relative_to(root).as_posix()
+        stamp = re.search(r"(\d{4})-?(\d{2})-?(\d{2})", path.name)
+        rows.append(
+            {
+                "path": rel,
+                "dated": "-".join(stamp.groups()) if stamp else "",
+                "supplier_id": (
+                    rel.split("/")[1].split("_")[0]
+                    if rel.startswith("suppliers/")
+                    else ""
+                ),
+                "type": (
+                    "price list"
+                    if "price" in path.name.lower()
+                    else "news" if rel.startswith("soony/news") else "notice"
+                ),
+            }
+        )
+    rows.sort(key=lambda r: r["dated"], reverse=True)
+    return "suppliers/*/notices, soony/news", rows
+
+
+def _document_paths() -> list[Path]:
+    """Every document file, each once."""
+    root, seen = data_root(), []
     for pattern in DOCUMENT_FOLDERS:
         for path in sorted(root.glob(f"{pattern}/*")):
-            if not path.is_file() or path in seen:
-                continue
-            seen.add(path)
-            rel = path.relative_to(root).as_posix()
-            rows.append(
-                {
-                    "path": rel,
-                    "type": rel.split("/")[-2] if "/" in rel else "",
-                    "supplier_id": (
-                        rel.split("/")[1].split("_")[0]
-                        if rel.startswith("suppliers/")
-                        else ""
-                    ),
-                    "kb": round(path.stat().st_size / 1024),
-                }
-            )
-    return (
-        "suppliers/*/{notices,order_confirmations,contracts}, soony/…",
-        _with_suppliers(rows),
-    )
+            if path.is_file() and path not in seen:
+                seen.append(path)
+    return seen
 
 
-DATASETS: dict[str, tuple[str, str, Callable[[], tuple[str, list[dict]]]]] = {
-    "stock": ("Stock today", "Book stock at DC-HAM after today's receipts", _stock),
-    "packed": ("Packed copies", "Finished goods packed at DC-HAM", _packed),
+Reader = Callable[[], tuple[str, list[dict]]]
+C = Column
+DATASETS: dict[str, tuple[str, str, Reader, list[Column], list[Related]]] = {
+    "parts": (
+        "Parts & stock",
+        "Launch parts: still needed, stock today, balance, suppliers",
+        _parts,
+        [
+            C(key="component_id", label="Part", kind="part"),
+            C(key="used_in", label="Used in", kind="part", multi=True),
+            C(key="critical", label="Critical", kind="flag"),
+            C(key="need", label="Still needed", kind="qty"),
+            C(key="stock", label="Book stock", kind="qty"),
+            C(key="balance", label="Balance", kind="balance"),
+            C(key="revision", label="Revision rule"),
+            C(key="note", label="Note"),
+            C(key="suppliers", label="Suppliers", kind="supplier", multi=True),
+        ],
+        [
+            Related(
+                label="Orders",
+                dataset="purchase_orders",
+                column="material_id",
+                value_from="component_id",
+            ),
+            Related(
+                label="Receipts",
+                dataset="receipts",
+                column="material_id",
+                value_from="component_id",
+            ),
+            Related(
+                label="Shipments",
+                dataset="shipments",
+                column="material_ids",
+                value_from="component_id",
+            ),
+        ],
+    ),
     "shipments": (
-        "Shipments",
-        "Open inbound shipments with ETA and status",
+        "Inbound shipments",
+        "Not yet delivered, by arrival; before or after launch",
         _shipments,
+        [
+            C(key="shipment_id", label="Shipment", kind="shipment"),
+            C(key="supplier_id", label="Supplier", kind="supplier"),
+            C(key="material_ids", label="Parts", kind="part", multi=True),
+            C(key="po_numbers", label="Orders", kind="po", multi=True),
+            C(key="mode", label="Mode", kind="status"),
+            C(key="origin", label="From"),
+            C(key="eta", label="Arrives", kind="date"),
+            C(key="before_launch", label="Before launch", kind="flag"),
+            C(key="status", label="Status", kind="status"),
+            C(key="note", label="Note"),
+        ],
+        [],
     ),
     "purchase_orders": (
-        "Purchase orders",
-        "PO lines, newest promised date first",
+        "Open orders",
+        "PO lines for launch parts still to be delivered",
         _purchase_orders,
+        [
+            C(key="po_number", label="Order", kind="po"),
+            C(key="po_line", label="Line"),
+            C(key="supplier_id", label="Supplier", kind="supplier"),
+            C(key="material_id", label="Part", kind="part"),
+            C(key="quantity", label="Qty", kind="qty"),
+            C(key="unit_price", label="Unit price", kind="money"),
+            C(key="requested_date", label="Requested", kind="date"),
+            C(key="promised_date", label="Promised", kind="date"),
+            C(key="status", label="Status", kind="status"),
+            C(key="buyer", label="Buyer"),
+            C(key="note", label="Note"),
+        ],
+        [
+            Related(
+                label="Receipts",
+                dataset="receipts",
+                column="po_number",
+                value_from="po_number",
+            )
+        ],
     ),
     "receipts": (
-        "Goods receipts",
-        "What receiving booked, with delivery note and remark",
+        "Recent receipts",
+        "What receiving booked in the last three weeks, with the delivery note",
         _receipts,
-    ),
-    "parts": (
-        "Parts & BOM",
-        "Components, where they are used, current revision",
-        _parts,
-    ),
-    "bom_changes": (
-        "BOM changes",
-        "Engineering changes and whether old stock may be used",
-        _bom_changes,
+        [
+            C(key="gr_date", label="Received", kind="date"),
+            C(key="delivery_note", label="Delivery note", kind="delivery_note"),
+            C(key="po_number", label="Order", kind="po"),
+            C(key="supplier_id", label="Supplier", kind="supplier"),
+            C(key="material_id", label="Part", kind="part"),
+            C(key="qty_ordered", label="Ordered", kind="qty"),
+            C(key="qty_received", label="Booked", kind="qty"),
+            C(key="remark", label="Remark"),
+        ],
+        [],
     ),
     "suppliers": (
         "Suppliers",
-        "Contacts, language, status and the parts they deliver",
+        "Who to call: contact, language, status, parts",
         _suppliers,
+        [
+            C(key="supplier_id", label="Supplier", kind="supplier"),
+            C(key="country", label="Country"),
+            C(key="language", label="Language"),
+            C(key="qualification", label="Qualification", kind="status"),
+            C(key="contact", label="Contact"),
+            C(key="email", label="Email"),
+            C(key="phone", label="Phone"),
+            C(key="parts", label="Parts", kind="part", multi=True),
+            C(key="notes", label="Notes"),
+        ],
+        [
+            Related(
+                label="Orders",
+                dataset="purchase_orders",
+                column="supplier_id",
+                value_from="supplier_id",
+            ),
+            Related(
+                label="Shipments",
+                dataset="shipments",
+                column="supplier_id",
+                value_from="supplier_id",
+            ),
+            Related(
+                label="Notices",
+                dataset="notices",
+                column="supplier_id",
+                value_from="supplier_id",
+            ),
+        ],
     ),
-    "documents": (
-        "Documents",
-        "Notices, confirmations, contracts, delivery-note scans",
-        _documents,
+    "notices": (
+        "Supplier notices",
+        "Shutdowns, offers, licences, price lists and market news",
+        _notices,
+        [
+            C(key="dated", label="Dated", kind="date"),
+            C(key="path", label="Document", kind="file"),
+            C(key="type", label="Type", kind="status"),
+            C(key="supplier_id", label="Supplier", kind="supplier"),
+        ],
+        [],
     ),
 }
 
@@ -258,20 +446,48 @@ DATASETS: dict[str, tuple[str, str, Callable[[], tuple[str, list[dict]]]]] = {
 def catalog() -> list[DatasetInfo]:
     """The datasets the Data tab offers."""
     return [
-        DatasetInfo(key=k, title=t, description=d) for k, (t, d, _) in DATASETS.items()
+        DatasetInfo(key=k, title=spec[0], description=spec[1])
+        for k, spec in DATASETS.items()
     ]
 
 
 def load(key: str) -> Dataset:
-    """Read one dataset.
+    """Read one dataset; columns the data does not have are left out.
 
     Raises:
         KeyError: If ``key`` is not a known dataset.
     """
-    title, _, read = DATASETS[key]
+    title, _, read, columns, related = DATASETS[key]
     source, rows = read()
-    columns = list(dict.fromkeys(col for row in rows for col in row))
-    return Dataset(key=key, title=title, source=source, columns=columns, rows=rows)
+    present = {col for row in rows for col in row}
+    return Dataset(
+        key=key,
+        title=title,
+        source=source,
+        columns=[c for c in columns if c.key in present],
+        related=related,
+        rows=rows,
+    )
+
+
+def lookups() -> Lookups:
+    """Part and supplier names, and the documents behind delivery notes and POs."""
+    parts = {c["component_id"]: c["description"] for c in _csv("master/components.csv")}
+    parts |= {p["product_id"]: p["name"] for p in _csv("master/products.csv")}
+    suppliers = {
+        p["supplier_id"]: p.get("name") or p["supplier_id"] for p in _profiles()
+    }
+    documents: dict[str, list[str]] = {}
+    root = data_root()
+    for path in _document_paths():
+        rel = path.relative_to(root).as_posix()
+        # delivery notes (WZ-/DN-/SN-...) and PO numbers (45...) in file names
+        for token in re.findall(r"[A-Z]{2}-\d{6}-\d{3}|45\d{8}", path.name):
+            documents.setdefault(token, []).append(rel)
+    open_orders = sorted({r["po_number"] for r in _purchase_orders()[1]})
+    return Lookups(
+        parts=parts, suppliers=suppliers, documents=documents, open_orders=open_orders
+    )
 
 
 def resolve(rel: str) -> Path:

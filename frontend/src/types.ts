@@ -191,11 +191,36 @@ export interface DatasetInfo {
   description: string;
 }
 
+/** How the Data tab shows one column; id kinds link to their own table. */
+export interface DatasetColumn {
+  key: string;
+  label: string;
+  kind: "text" | "qty" | "money" | "date" | "status" | "flag" | "balance" | "part" | "supplier" | "po" | "shipment" | "delivery_note" | "file";
+  multi: boolean;
+}
+
+/** A link from each row to rows of another dataset with the same id. */
+export interface RelatedLink {
+  label: string;
+  dataset: string;
+  column: string;
+  value_from: string;
+}
+
 /** One table of the Soony data set. */
 export interface Dataset {
   key: string;
   title: string;
   source: string;
-  columns: string[];
+  columns: DatasetColumn[];
+  related: RelatedLink[];
   rows: Array<Record<string, string | number | null>>;
+}
+
+/** Names and documents behind the ids in the Data tab. */
+export interface Lookups {
+  parts: Record<string, string>;
+  suppliers: Record<string, string>;
+  documents: Record<string, string[]>;
+  open_orders: string[];
 }
