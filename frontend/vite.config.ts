@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       strictPort: true,
       proxy: Object.fromEntries(
-        ["/api", "/import", "/notifications"].map((path) => [
+        ["/api", "/import", "/notifications", "/readiness"].map((path) => [
           path,
           env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8000",
         ]),
