@@ -58,6 +58,28 @@ Set `CHAT_ENGINE=openai` to answer through `LLM_MODEL` directly instead (no tool
 Codex options: `CODEX_MODEL`, `CODEX_REASONING_EFFORT` (default `low`),
 `CODEX_TIMEOUT_SECONDS` (default 1200).
 
+## Agent skills
+
+Repeatable procedures live in `backend/agent_skills/<name>/SKILL.md` (Agent
+Skills format: front matter with `name` and `description`, then the steps).
+The `skills` MCP server (`backend/scripts/skills_mcp.py`) gives every agent
+`list_skills` and `get_skill`; a new folder is a new skill, no code change.
+Register it once with Codex:
+
+```powershell
+codex mcp add skills -- "<repo>\.venv\Scripts\python.exe" "<repo>\backend\scripts\skills_mcp.py"
+```
+
+`risk-check` syncs the portal, cross-checks ERP, master data, supplier
+documents and receiving scans, and posts one notification per problem (stable
+keys, so reruns update instead of duplicating). Run it with **Run risk check**
+in the agent chat, by asking an agent, or headless (e.g. from Task Scheduler),
+from `backend/`:
+
+```powershell
+..\.venv\Scripts\python.exe scripts/run_skill.py risk-check
+```
+
 ## Run multiple Codex coding assistants
 
 Install and sign in to the Codex CLI on the machine that will run the agents.

@@ -65,19 +65,37 @@ Work through every check. Only report what the data supports.
 
 ## 4. Report
 
+One notification per problem. Combine everything about the same object into it
+(all differing fields of one PO line, all delay facts of one shipment).
+
+Keys must follow this table exactly, so every run produces the same key for the
+same problem and updates it instead of creating a duplicate:
+
+| kind | key |
+|---|---|
+| `receipt_mismatch` | `receipt:<delivery_note>:<material_id>` |
+| `po_confirmation` | `po-confirmation:<po_number>:<po_line>` |
+| `stock_shortage` | `shortage:<material_id>` (one per part, across editions) |
+| `quality` | `quality:<material_id>:<lot_or_batch>` |
+| `shipment_delay` | `shipment:<shipment_id>` |
+| `supplier_notice` | `notice:<supplier_id>:<topic>`, topic one of `shutdown`, `delay`, `capacity`, `export-licence`, `price`, `express-offer`, `bank-details`, `quality`, `other` |
+| `master_data` | `master:<component_id>:<change_id_or_field>` |
+| `capacity` | `capacity:<product_id>:<site>` |
+| `policy` | `policy:<po_number_or_supplier_id>` |
+
+Before reporting, compare with `list_notifications`: if a notification already
+describes the same problem under a different key, reuse that key instead of
+creating a second one.
+
 For each problem call `report_notification` with:
 
-- `key`: stable and unique, `<check>:<main id>:<second id>`, for example
-  `receipt-qty:DN-260831-382:CMP-ART-001` or `notice:SUP-0028:shutdown-2026-11`.
-  The same problem must get the same key on every run, so it updates instead of
-  duplicating.
+- `key`: from the table above
 - `attr`: what differs (`quantity`, `eta`, `price`, `revision`, `bank_details`, ...)
 - `erp_val` / `customer_val`: the ERP value and the paper/supplier/real-world value, as text
 - `title`: one line a buyer understands, e.g. "Art book receipt booked 80,000, delivery note says 8,000"
 - `severity`: `critical` (blocks or endangers launch, or fraud risk),
   `warning` (needs action today), `info` (worth knowing)
-- `kind`: the check name (`receipt_mismatch`, `stock_shortage`, `shipment_delay`,
-  `supplier_notice`, `master_data`, `capacity`, `policy`)
+- `kind`: the kind from the key table
 - `details`: the evidence, the impact on the launch, and the recommended next step
 - `refs`: every file path you used
 
